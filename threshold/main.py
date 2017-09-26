@@ -1,97 +1,49 @@
 
-li = [ 20, 30, 40, 50, 67, 79, 98 ]
+from threshold import threshold, set_thresholds
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
+from sys import exit
 
-cycle = 0
+li = [ 20, 60, 100, 140, 180, 220, 240 ]
 
-NUM_OF_SLOTS = 4
-
-slot0 = 0
-slot1 = 0
-slot2 = 0
-slot3 = 0
-
-
-def compare( value, slot0_en=1, slot1_en=1, slot2_en=1, slot3_en=1 ):
-
-    global slot0
-    global slot1
-    global slot2
-    global slot3
-
-    slot0 = 0
-    slot1 = 0
-    slot2 = 0
-    slot3 = 0
-
-    # These if-statements run parallel
-    if ( slot0_en and value >= li[ cycle*NUM_OF_SLOTS ] ):
-        slot0 = 1
-
-    if ( slot1_en and value >= li[ cycle*NUM_OF_SLOTS + 1 ]):
-        slot1 = 1
-
-    if ( slot2_en and value >= li[ cycle*NUM_OF_SLOTS + 2 ]):
-        slot2 = 1
-
-    if ( slot3_en and value >= li[ cycle*NUM_OF_SLOTS + 3 ]):
-        slot3 = 1
+index = lambda i, j, rows: i * rows + j
 
 
-    if slot3 == 1:
-        return True  # Repeat
+def threshold_matrix( matrix, li, rows, cols ):
+    set_thresholds(li)
 
-    return False  # No repeat
+    result = np.zeros_like( matrix )
 
+    for row in range(rows):
+        for col in range(cols):
+            result[index(row, col, rows)] = threshold( matrix[ \
+                index(row, col, rows) ])
 
-def pop_count():
-    return slot0 + slot1 + slot2 + slot3
-
-
-def threshold( value ):
-    global cycle
-    slot3_en = 1
-
-    while True:
-        if ( cycle*NUM_OF_SLOTS + 3 == 7 ):
-            slot3_en = 0
-
-        if not compare( value, slot3_en = slot3_en ):
-            break
-
-        cycle += 1
+    return result
 
 
-
-    return cycle * NUM_OF_SLOTS + pop_count()
-
-
-def reset():
-    global slot0
-    global slot1
-    global slot2
-    global slot3
-    global cycle
-
-    slot0 = 0
-    slot1 = 0
-    slot2 = 0
-    slot3 = 0
-    cycle = 0
-
+def print_result(matrix, rows, cols):
+    for row in range(rows):
+        for col in range(cols):
+            print(result[index(row, col, rows)], sep='  ', end="")
+        print()
 
 if __name__ == "__main__":
-    print(threshold(23));
-    reset()
-    print(threshold(33));
-    reset()
-    print(threshold(43));
-    reset()
-    print(threshold(53));
-    reset()
-    print(threshold(63));
-    reset()
-    print(threshold(73));
-    reset()
-    print(threshold(83));
-    reset()
-    print(threshold(93));
+    img = Image.open( "ducky.jpg" )
+    img = img.convert( 'L' )
+    img = np.asarray( img )
+    dims = img.shape
+    img = img.flatten()
+
+    if img.shape[0] != dims[0] * dims[0]:
+        print("Invalid image dimensions")
+        exit()
+
+    result = threshold_matrix(img, li, *dims)
+    result = result.reshape( dims )
+
+    plt.figure(figsize=(12, 12))
+    plt.imshow( result, plt.cm.gray )
+    plt.show()
+    plt.close()
