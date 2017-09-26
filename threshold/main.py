@@ -30,7 +30,8 @@ def print_result(matrix, rows, cols):
         print()
 
 if __name__ == "__main__":
-    img = Image.open( "ducky.jpg" )
+    img_target = "ducky-128.jpg"
+    img = Image.open( "../test-data/" + img_target )
     img = img.convert( 'L' )
     img = np.asarray( img )
     dims = img.shape
@@ -44,6 +45,7 @@ if __name__ == "__main__":
     result = result.reshape( dims )
 
     plt.figure(figsize=(12, 12))
+    plt.axis( 'off' )
     plt.imshow( result, plt.cm.gray )
-    plt.show()
+    plt.savefig("../result-data/" + img_target)
     plt.close()
