@@ -1,15 +1,16 @@
+package Prototypes
 
 import chisel._
 
-class Compare_input extends Module {
+class CompareUnit extends Module {
     val a = Bits(Input, width=8)    // Threshold input
     val b = Bits(Input, width=8)    // data input
 }
 
-class Compare extends Module{
+class Compare extends Module {
     val io = new Bundle {
-        val in      = Decoupled(new Compare_input()).flip()
-        val out     = Bool(OUTPUT)
+        val in = Decoupled(new Compare_input()).flip()
+        val out = Bool(OUTPUT)
     }
 
     val thresh = Reg(Uint, width=8)

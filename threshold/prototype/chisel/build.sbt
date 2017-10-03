@@ -2,7 +2,7 @@ organization := "edu.berkeley.cs"
 
 version := "2.3-SNAPSHOT"
 
-name := "prototype"
+name := "prototypes"
 
 scalaVersion := "2.11.7"
 
