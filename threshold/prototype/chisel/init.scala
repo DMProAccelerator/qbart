@@ -7,7 +7,7 @@ object Prototypes {
         val tutArgs = args.slice(1, args.length)
         args(0) match {
             case "Adder" =>
-                chiselMainTest(tutArgs, () => Module(new Adder(8))) {
+                chiselMainTest(tutArgs, () => Module(new Adder())) {
                     c => new AdderTests(c)
                 }
         }

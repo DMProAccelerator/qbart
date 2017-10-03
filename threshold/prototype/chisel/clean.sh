@@ -6,6 +6,6 @@
 
 rm -rf project target
 
-KEEP=".*/\(clean.sh\|Makefile\|.*\.scala\|chisel-dependent.sbt\|build.sbt\)"
+KEEP=".*/\(build-failing\|clean.sh\|Makefile\|.*\.scala\|chisel-dependent.sbt\|build.sbt\)"
 
 find . -mindepth 1 ! -regex ${KEEP} -exec echo "rm -f " {} \; -exec rm -f {} \;
