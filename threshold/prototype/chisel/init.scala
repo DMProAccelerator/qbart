@@ -10,6 +10,11 @@ object Prototypes {
                 chiselMainTest(tutArgs, () => Module(new Adder())) {
                     c => new AdderTests(c)
                 }
+
+            case "CompareUnit" =>
+                chiselMainTest(tutArgs, () => Module(new CompareUnit())) {
+                    c => new CompareUnitTests(c)
+                }
         }
     }
 }
