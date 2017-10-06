@@ -1,4 +1,4 @@
-package TutorialSolutions
+package Prototypes
 
 import Chisel._
 
