@@ -11,7 +11,7 @@
 #define NUM_ALLOWED_CONNECTIONS 4
 
 /* typedefs for readability */
-typedef int file_descriptor;
+typedef int socket_descriptor;
 
 /* setup_socket
  *
@@ -21,27 +21,27 @@ typedef int file_descriptor;
  *
  * Input:
  *    socket_path (relative path to socket)
- *    local_socket (will be initialized by the function)
+ *    local_addr (will be initialized by the function)
  * Return value:
- *    File descriptor to connection socket (used when accepting connecitons)
+ *    Socket descriptor to connection socket (used when accepting connecitons)
  */
-file_descriptor setup_socket(char* socket_path, struct sockaddr_un* local_socket);
+socket_descriptor setup_socket(char* socket_path, struct sockaddr_un* local_addr);
 
 /* destroy_socket
  *
  * Unlinks the socket in socket_path, and closes the connection_socket
  */
-void destroy_socket(char* socket_path, file_descriptor connection_socket);
+void destroy_socket(char* socket_path, socket_descriptor connection_socket);
 
 /* accept_connection
  *
- * Wait for incoming connection and return fd to new socket.
+ * Wait for incoming connection and return  new socket descriptor.
  * NOTE: Blocks untill new client is connected.
  *
  * Input:
  *    connection_socket (socket to accept from)
- *    remote_socket (will be initialized by the function)
+ *    remote_addr (will be initialized by the function)
  * Return value:
- *    File descriptor to new socket connected to client
+ *    Socket descriptor to new socket connected to client
  */
-file_descriptor accept_connection(file_descriptor connection_socket, struct sockaddr_un* remote_socket);
+socket_descriptor accept_connection(socket_descriptor connection_socket, struct sockaddr_un* remote_addr);

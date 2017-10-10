@@ -9,27 +9,27 @@
 #include <unistd.h>
 
 
-file_descriptor setup_socket(char* socket_path, struct sockaddr_un* local_socket) {
+socket_descriptor setup_socket(char* socket_path, struct sockaddr_un* local_addr) {
 
   /* remove socket, in case it still exists (unexpected exit at last run) */
   unlink(socket_path);
 
   /* create socket */
-  file_descriptor connection_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+  socket_descriptor connection_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (connection_socket == -1) {
     perror("socket");
     goto error;
   }
 
   /* create and clear socket structure (for portability) */
-  memset(local_socket, 0, sizeof(struct sockaddr_un));
+  memset(local_addr, 0, sizeof(struct sockaddr_un));
 
   /* Bind socket to socket name */
-  local_socket->sun_family = AF_UNIX;
-  snprintf(local_socket->sun_path, strlen(socket_path)+1, "%s", socket_path);
+  local_addr->sun_family = AF_UNIX;
+  snprintf(local_addr->sun_path, strlen(socket_path)+1, "%s", socket_path);
 
   /* bind connection socket to address in Unix domain */
-  if(bind(connection_socket, (struct sockaddr*)local_socket, sizeof(struct sockaddr_un)) == -1) {
+  if(bind(connection_socket, (struct sockaddr*)local_addr, sizeof(struct sockaddr_un)) == -1) {
     perror("bind");
     goto error;
   }
@@ -47,16 +47,16 @@ error:
   exit(1);
 }
 
-void destroy_socket(char* socket_path, file_descriptor connection_socket) {
+void destroy_socket(char* socket_path, socket_descriptor connection_socket) {
   if (connection_socket > -1) {
     close(connection_socket);
   }
   unlink(socket_path);
 }
 
-file_descriptor accept_connection(file_descriptor connection_socket, struct sockaddr_un* remote_socket) {
+socket_descriptor accept_connection(socket_descriptor connection_socket, struct sockaddr_un* remote_addr) {
   socklen_t size = sizeof(struct sockaddr_un);
-  file_descriptor conn = accept(connection_socket, (struct sockaddr *)remote_socket, &size);
+  socket_descriptor conn = accept(connection_socket, (struct sockaddr *)remote_addr, &size);
   if (conn == -1) {
     perror("accept");
     goto error;
