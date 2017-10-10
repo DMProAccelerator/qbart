@@ -53,3 +53,18 @@ void destroy_socket(char* socket_path, file_descriptor connection_socket) {
   }
   unlink(socket_path);
 }
+
+file_descriptor accept_connection(file_descriptor connection_socket, struct sockaddr_un* remote_socket) {
+  socklen_t size = sizeof(struct sockaddr_un);
+  file_descriptor conn = accept(connection_socket, (struct sockaddr *)remote_socket, &size);
+  if (conn == -1) {
+    perror("accept");
+    goto error;
+  }
+
+  return conn;
+
+error:
+  // TODO(okpedersen): Find a better way to handle this
+  return -1;
+}
