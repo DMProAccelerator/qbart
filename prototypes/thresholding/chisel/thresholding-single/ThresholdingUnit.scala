@@ -9,6 +9,7 @@ object PopCount {
     }
 }
 
+
 /** Compares two values and accumulates their corresponding Hamming weight.
  *
  * The class provides a hard step function that compares a matrix element
