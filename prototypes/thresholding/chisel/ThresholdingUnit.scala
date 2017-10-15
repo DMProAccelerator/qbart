@@ -2,6 +2,12 @@ package Prototypes
 
 import Chisel._
 
+/** Compares two values. */
+object PopCount {
+    def compare(a: UInt, b: UInt): UInt = {
+        a >= b
+    }
+}
 
 /** Compares two values and accumulates their corresponding Hamming weight.
  *
@@ -20,9 +26,18 @@ class Accumulator extends Module {
 
     val accumulator_r = Reg(init = UInt(0, 32))
 
+    io.count.bits := accumulator_r
+    io.count.valid := Bool(false)
+    io.matrix.ready := Bool(false)
+    io.threshold.ready := Bool(false)
+
     when (io.write_enable & !io.reset) {
-        when (io.matrix.bits >= io.threshold.bits) {
-            accumulator_r := accumulator_r + UInt(1)
+        when (io.matrix.valid & io.threshold.valid) {
+            accumulator_r := accumulator_r +
+                PopCount.compare(io.matrix.bits, io.threshold.bits)
+            io.count.valid := Bool(true)
+            io.matrix.ready := Bool(true)
+            io.threshold.ready := Bool(true)
         }
     }
 
@@ -43,9 +58,9 @@ class ThresholdingUnitTests(c: Accumulator) extends Tester(c) {
     // Accumulator value.
     var count = 0
     // Threshold vector size. Currently set for 8-bit thresholding.
-    var size = 7
+    var size = 30
     // Number of matrix elements to perform thresholding on.
-    var elements = 255
+    var elements = 1
     // Single matrix element.
     var matrix = 0
     // Single thresholding element.
@@ -77,6 +92,8 @@ class ThresholdingUnitTests(c: Accumulator) extends Tester(c) {
 
         poke(c.io.matrix.bits, matrix)
         poke(c.io.threshold.bits, threshold)
+        poke(c.io.matrix.valid, 1)
+        poke(c.io.threshold.valid, 1)
         step(1)
         expect(c.io.count.bits, count)
 
