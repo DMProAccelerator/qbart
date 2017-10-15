@@ -9,7 +9,7 @@ import Chisel._
  * M(i, j) to a threshold element T(k). If M(i, j) >= T(k), then the Hamming
  * weight is incremented by one.
  */
-class ThresholdingCompareUnit extends Module {
+class Accumulator extends Module {
     val io = new Bundle {
         val matrix = Decoupled(UInt(INPUT, width = 32)).flip()
         val threshold = Decoupled(UInt(INPUT, width = 32)).flip()
@@ -39,7 +39,7 @@ class ThresholdingCompareUnit extends Module {
  * Ensures valid cumulative Hamming weight for randomly generated matrix and
  * threshold elements.
  */
-class ThresholdingUnitTests(c: ThresholdingCompareUnit) extends Tester(c) {
+class ThresholdingUnitTests(c: Accumulator) extends Tester(c) {
     // Accumulator value.
     var count = 0
     // Threshold vector size. Currently set for 8-bit thresholding.
