@@ -11,6 +11,8 @@ import Chisel._
  */
 class ThresholdingCompareUnit extends Module {
     val io = new Bundle {
+        val matrix = UInt(INPUT, width = 32)
+        val threshold = UInt(INPUT, width = 32)
         val write_enable = Bool(INPUT)
         val reset = Bool(INPUT)
         val count = UInt(OUTPUT, width = 32)
@@ -19,7 +21,9 @@ class ThresholdingCompareUnit extends Module {
     val accumulator_r = Reg(init = UInt(0, 32))
 
     when (io.write_enable & !io.reset) {
-        accumulator_r := accumulator_r + UInt(1)
+        when (io.matrix >= io.threshold) {
+            accumulator_r := accumulator_r + UInt(1)
+        }
     }
 
     when (io.reset) {
@@ -41,7 +45,11 @@ class ThresholdingUnitTests(c: ThresholdingCompareUnit) extends Tester(c) {
     // Threshold vector size. Currently set for 8-bit thresholding.
     var size = 7
     // Number of matrix elements to perform thresholding on.
-    var elements = 4
+    var elements = 255
+    // Single matrix element.
+    var matrix = 0
+    // Single thresholding element.
+    var threshold = 0
 
     // Clear accumulator.
     poke(c.io.reset, 1)
@@ -54,7 +62,12 @@ class ThresholdingUnitTests(c: ThresholdingCompareUnit) extends Tester(c) {
 
     // Start testing.
     for (i <- 1 to (elements * size) ) {
-        count = count + 1
+        matrix = rnd.nextInt(255)
+        threshold = rnd.nextInt(255)
+
+        if (matrix >= threshold) {
+            count = count + 1
+        }
 
         // Flush accumulator.
         if (i % size == 0) {
@@ -62,6 +75,8 @@ class ThresholdingUnitTests(c: ThresholdingCompareUnit) extends Tester(c) {
             count = 0
         }
 
+        poke(c.io.matrix, matrix)
+        poke(c.io.threshold, threshold)
         step(1)
         expect(c.io.count, count)
 
