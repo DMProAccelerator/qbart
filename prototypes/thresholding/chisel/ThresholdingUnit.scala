@@ -11,17 +11,17 @@ import Chisel._
  */
 class ThresholdingCompareUnit extends Module {
     val io = new Bundle {
-        val matrix = UInt(INPUT, width = 32)
-        val threshold = UInt(INPUT, width = 32)
+        val matrix = Decoupled(UInt(INPUT, width = 32)).flip()
+        val threshold = Decoupled(UInt(INPUT, width = 32)).flip()
         val write_enable = Bool(INPUT)
         val reset = Bool(INPUT)
-        val count = UInt(OUTPUT, width = 32)
+        val count = Decoupled(UInt(OUTPUT, width = 32))
     }
 
     val accumulator_r = Reg(init = UInt(0, 32))
 
     when (io.write_enable & !io.reset) {
-        when (io.matrix >= io.threshold) {
+        when (io.matrix.bits >= io.threshold.bits) {
             accumulator_r := accumulator_r + UInt(1)
         }
     }
@@ -30,7 +30,7 @@ class ThresholdingCompareUnit extends Module {
         accumulator_r := UInt(0)
     }
 
-    io.count := accumulator_r
+    io.count.bits := accumulator_r
 }
 
 
@@ -75,10 +75,10 @@ class ThresholdingUnitTests(c: ThresholdingCompareUnit) extends Tester(c) {
             count = 0
         }
 
-        poke(c.io.matrix, matrix)
-        poke(c.io.threshold, threshold)
+        poke(c.io.matrix.bits, matrix)
+        poke(c.io.threshold.bits, threshold)
         step(1)
-        expect(c.io.count, count)
+        expect(c.io.count.bits, count)
 
         // Return to default state.
         if (i % size == 0) {
