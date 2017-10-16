@@ -16,9 +16,14 @@ object Prototypes {
                     c => new CompareUnitTests(c)
                 }
 
-            case "Threshold" =>
-                chiselMainTest(tutArgs, () => Module(new Threshold())) {
+            case "Threshold4" =>
+                chiselMainTest(tutArgs, () => Module(new Threshold(4))) {
                     c => new ThresholdTests(c)
+                }
+
+            case "Threshold2" =>
+                chiselMainTest(tutArgs, () => Module(new Threshold(2))) {
+                    c => new ThresholdWithCyclesTests(c)
                 }
         }
     }
