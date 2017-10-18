@@ -2,13 +2,6 @@ package Prototypes
 
 import Chisel._
 
-/** Compares two values. */
-object PopCount {
-    def compare(a: UInt, b: UInt): UInt = {
-        a >= b
-    }
-}
-
 
 /** Compares two values and accumulates their corresponding Hamming weight.
  *
@@ -19,8 +12,8 @@ object PopCount {
 class ThresholdingUnit extends Module {
     val io = new Bundle {
         val matrix = Decoupled(UInt(INPUT, width = 32)).flip()
-        val threshold = Decoupled(UInt(INPUT, width = 32)).flip()
         val size = UInt(INPUT, width = 32)
+        val op = Vec.fill(255) { UInt(INPUT, width = 32) }
         val start = Bool(INPUT)
         val count = Decoupled(UInt(OUTPUT, width = 32))
     }
@@ -29,12 +22,11 @@ class ThresholdingUnit extends Module {
 
     val r_state = Reg(init = s_idle)
     val r_accumulator = Reg(init = UInt(0, 32))
-    var r_index = Reg(init = UInt(0, 32))
+    val r_index = Reg(init = UInt(0, 32))
 
     // Default values.
     io.count.valid := Bool(false)
     io.matrix.ready := Bool(false)
-    io.threshold.ready := Bool(false)
     io.count.bits := r_accumulator
 
     switch (r_state) {
@@ -49,12 +41,10 @@ class ThresholdingUnit extends Module {
             when (r_index === UInt(io.size)) {
                 r_state := s_finished
             }
-            .elsewhen (io.matrix.valid & io.threshold.valid) {
+            .elsewhen (io.matrix.valid) {
                 r_accumulator := r_accumulator +
-                    PopCount.compare(io.matrix.bits, io.threshold.bits)
+                    (UInt(io.matrix.bits) >= UInt(io.op(r_index)))
                 r_index := r_index + UInt(1)
-                io.matrix.ready := Bool(true)
-                io.threshold.ready := Bool(true)
             }
         }
         is (s_finished) {
@@ -63,6 +53,7 @@ class ThresholdingUnit extends Module {
             }
             .otherwise {
                 io.count.valid := Bool(true)
+                io.matrix.ready := Bool(true)
             }
         }
     }
@@ -94,7 +85,10 @@ class ThresholdingUnitTests(c: ThresholdingUnit) extends Tester(c) {
         result(i) = count
     }
 
-    // Set threshold vector size.
+    // Prepare threshold vector.
+    for (i <- 0 to threshold.size - 1) {
+        poke(c.io.op(i), threshold(i))
+    }
     poke(c.io.size, threshold.size)
 
     for (i <- 0 to matrix.size - 1) {
@@ -103,15 +97,8 @@ class ThresholdingUnitTests(c: ThresholdingUnit) extends Tester(c) {
         poke(c.io.matrix.valid, 1)
         poke(c.io.start, 1)
 
-        // Iterate threshold vector until result is valid.
-        var j = 0
-        poke(c.io.threshold.bits, threshold(j))
-        poke(c.io.threshold.valid, 1)
+        // Iterate threshold vector until valid result.
         while (peek(c.io.count.valid) == 0) {
-            if (peek(c.io.threshold.ready) == 1) {
-                poke(c.io.threshold.bits, threshold(j))
-                j += 1
-            }
             step(1)
         }
 
@@ -120,7 +107,6 @@ class ThresholdingUnitTests(c: ThresholdingUnit) extends Tester(c) {
         // Reset accumulator to idle state.
         poke(c.io.start, 0)
         poke(c.io.matrix.valid, 0)
-        poke(c.io.threshold.valid, 0)
 
         step(1)
     }
