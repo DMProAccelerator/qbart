@@ -20,33 +20,51 @@ class Accumulator extends Module {
     val io = new Bundle {
         val matrix = Decoupled(UInt(INPUT, width = 32)).flip()
         val threshold = Decoupled(UInt(INPUT, width = 32)).flip()
-        val write_enable = Bool(INPUT)
-        val reset = Bool(INPUT)
+        val size = UInt(INPUT, width = 32)
+        val start = Bool(INPUT)
         val count = Decoupled(UInt(OUTPUT, width = 32))
     }
 
-    val accumulator_r = Reg(init = UInt(0, 32))
+    val s_idle :: s_running :: s_finished :: Nil = Enum(UInt(), 3)
 
-    io.count.bits := accumulator_r
+    val r_state = Reg(init = s_idle)
+    val r_accumulator = Reg(init = UInt(0, 32))
+    var r_index = Reg(init = UInt(0, 32))
+
+    // Default values.
     io.count.valid := Bool(false)
     io.matrix.ready := Bool(false)
     io.threshold.ready := Bool(false)
+    io.count.bits := r_accumulator
 
-    when (io.write_enable & !io.reset) {
-        when (io.matrix.valid & io.threshold.valid) {
-            accumulator_r := accumulator_r +
-                PopCount.compare(io.matrix.bits, io.threshold.bits)
-            io.count.valid := Bool(true)
-            io.matrix.ready := Bool(true)
-            io.threshold.ready := Bool(true)
+    switch (r_state) {
+        is (s_idle) {
+            r_accumulator := UInt(0)
+            r_index := UInt(0)
+            when (io.start) {
+                r_state := s_running
+            }
+        }
+        is (s_running) {
+            when (r_index === UInt(io.size)) {
+                r_state := s_finished
+            }
+            .elsewhen (io.matrix.valid & io.threshold.valid) {
+                r_accumulator := r_accumulator + PopCount.compare(io.matrix.bits, io.threshold.bits)
+                r_index := r_index + UInt(1)
+                io.matrix.ready := Bool(true)
+                io.threshold.ready := Bool(true)
+            }
+        }
+        is (s_finished) {
+            when (!io.start) {
+                r_state := s_idle
+            }
+            .otherwise {
+                io.count.valid := Bool(true)
+            }
         }
     }
-
-    when (io.reset) {
-        accumulator_r := UInt(0)
-    }
-
-    io.count.bits := accumulator_r
 }
 
 
@@ -56,51 +74,40 @@ class Accumulator extends Module {
  * threshold elements.
  */
 class ThresholdingUnitTests(c: Accumulator) extends Tester(c) {
-    // Accumulator value.
+    var matrix = Array(1, 2, 3, 4)
+    var threshold = Array(1, 2, 3)
+    var result = Array(1, 2, 3, 3)
     var count = 0
-    // Threshold vector size. Currently set for 8-bit thresholding.
-    var size = 30
-    // Number of matrix elements to perform thresholding on.
-    var elements = 1
-    // Single matrix element.
-    var matrix = 0
-    // Single thresholding element.
-    var threshold = 0
+    var running = true
 
-    // Clear accumulator.
-    poke(c.io.reset, 1)
-    poke(c.io.write_enable, 0);
-    step(1)
+    // Set threshold vector size.
+    poke(c.io.size, threshold.size)
 
-    // Set default state.
-    poke(c.io.write_enable, 1)
-    poke(c.io.reset, 0)
-
-    // Start testing.
-    for (i <- 1 to (elements * size) ) {
-        matrix = rnd.nextInt(255)
-        threshold = rnd.nextInt(255)
-
-        if (matrix >= threshold) {
-            count = count + 1
-        }
-
-        // Flush accumulator.
-        if (i % size == 0) {
-            poke(c.io.reset, 1)
-            count = 0
-        }
-
-        poke(c.io.matrix.bits, matrix)
-        poke(c.io.threshold.bits, threshold)
+    for (i <- 0 to matrix.size - 1) {
+        // Set matrix element.
+        poke(c.io.matrix.bits, matrix(i))
         poke(c.io.matrix.valid, 1)
-        poke(c.io.threshold.valid, 1)
-        step(1)
-        expect(c.io.count.bits, count)
+        poke(c.io.start, 1)
 
-        // Return to default state.
-        if (i % size == 0) {
-            poke(c.io.reset, 0)
+        // Iterate threshold vector until result is valid.
+        var j = 0
+        poke(c.io.threshold.bits, threshold(j))
+        poke(c.io.threshold.valid, 1)
+        while (peek(c.io.count.valid) == 0) {
+            if (peek(c.io.threshold.ready) == 1) {
+                poke(c.io.threshold.bits, threshold(j))
+                j += 1
+            }
+            step(1)
         }
+
+        expect(c.io.count.bits, result(i))
+
+        // Reset accumulator to idle state.
+        poke(c.io.start, 0)
+        poke(c.io.matrix.valid, 0)
+        poke(c.io.threshold.valid, 0)
+
+        step(1)
     }
 }
