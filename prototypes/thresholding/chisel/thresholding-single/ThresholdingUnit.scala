@@ -50,7 +50,8 @@ class Accumulator extends Module {
                 r_state := s_finished
             }
             .elsewhen (io.matrix.valid & io.threshold.valid) {
-                r_accumulator := r_accumulator + PopCount.compare(io.matrix.bits, io.threshold.bits)
+                r_accumulator := r_accumulator +
+                    PopCount.compare(io.matrix.bits, io.threshold.bits)
                 r_index := r_index + UInt(1)
                 io.matrix.ready := Bool(true)
                 io.threshold.ready := Bool(true)
@@ -74,11 +75,24 @@ class Accumulator extends Module {
  * threshold elements.
  */
 class ThresholdingUnitTests(c: Accumulator) extends Tester(c) {
-    var matrix = Array(1, 2, 3, 4)
-    var threshold = Array(1, 2, 3)
-    var result = Array(1, 2, 3, 3)
-    var count = 0
-    var running = true
+    // Domain sizes. Currently set for 128 x 128 matrix and 4-bit thresholding
+    // vector.
+    var SIZE_MATRIX = 128 * 128
+    var SIZE_THRESH = 16
+
+    var matrix:Array[Integer] = Array.fill(SIZE_MATRIX) (rnd.nextInt(255))
+    var threshold:Array[Integer] = Array.fill(SIZE_THRESH)(rnd.nextInt(255))
+    var result:Array[Integer] = new Array[Integer](SIZE_MATRIX)
+
+    // Calculate results.
+    for (i <- 0 to matrix.size - 1) {
+        var x = matrix(i)
+        var count = 0
+        for (t <- threshold) {
+            count += (if (x >= t) 1 else 0)
+        }
+        result(i) = count
+    }
 
     // Set threshold vector size.
     poke(c.io.size, threshold.size)
