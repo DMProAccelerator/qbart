@@ -16,7 +16,7 @@ object PopCount {
  * M(i, j) to a threshold element T(k). If M(i, j) >= T(k), then the Hamming
  * weight is incremented by one.
  */
-class Accumulator extends Module {
+class ThresholdingUnit extends Module {
     val io = new Bundle {
         val matrix = Decoupled(UInt(INPUT, width = 32)).flip()
         val threshold = Decoupled(UInt(INPUT, width = 32)).flip()
@@ -69,12 +69,12 @@ class Accumulator extends Module {
 }
 
 
-/** Performs tests on the ThresholdingCompareUnit accumulator.
+/** Performs tests on the thresholding unit.
  *
  * Ensures valid cumulative Hamming weight for randomly generated matrix and
  * threshold elements.
  */
-class ThresholdingUnitTests(c: Accumulator) extends Tester(c) {
+class ThresholdingUnitTests(c: ThresholdingUnit) extends Tester(c) {
     // Domain sizes. Currently set for 128 x 128 matrix and 4-bit thresholding
     // vector.
     var SIZE_MATRIX = 128 * 128

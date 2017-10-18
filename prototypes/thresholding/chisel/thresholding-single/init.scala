@@ -17,8 +17,8 @@ object Prototypes {
     def main(args: Array[String]): Unit = {
         val params = args.slice(1, args.length)
         args(0) match {
-            case "Accumulator" =>
-                chiselMainTest(params, () => Module(new Accumulator())) {
+            case "ThresholdingUnit" =>
+                chiselMainTest(params, () => Module(new ThresholdingUnit())) {
                     c => new ThresholdingUnitTests(c) }
         }
     }
