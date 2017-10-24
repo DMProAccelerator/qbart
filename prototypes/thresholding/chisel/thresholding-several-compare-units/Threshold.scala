@@ -60,10 +60,9 @@ class Threshold(val n: Int) extends Module {
 
     when( io.thresh.valid && !p_thresh ) {
         // There are valid thresholds on the line, and unit is ready to receive.
-        p_thresh := Bool(true)
         io.out.valid := !cmp_out(n - 1)
         io.out.bits := (cycle) * UInt(n) + PopCount( cmp_out )
-        p_thresh := Bool(false)
+        p_thresh := Bool(true)
     }
 }
 
@@ -113,6 +112,9 @@ class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
     val outputs =   List(  0,  0,  0,  1,  1,   2,   3,   3,   3,   2,  1,  0,   3 )
 
     for ( i <- 0 until inputs.size ) {
+        // Expect that the unit is ready to receive
+        expect( io.in.ready, 1 )
+
         // Give the data
         poke( c.io.reset, 1 )
         poke( c.io.in.bits.data, inputs(i) )
@@ -129,6 +131,7 @@ class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
         // Next cycle
         step(1)
         poke( c.io.reset, 0 )
+        poke( c.io.in.valid, 0 )
 
         if ( one_cycle(i) == 1 ) {
             expect( c.io.out.valid, 1 )
@@ -136,6 +139,7 @@ class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
         }
         else {
             expect( c.io.out.valid, 0 )
+            expect( c.io.in.ready, 0 )
 
             // Give last threshold
             poke( c.io.thresh.bits.in(0), thresholds(2) )
