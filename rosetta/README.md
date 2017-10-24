@@ -1,6 +1,4 @@
 # Rosetta
-Full Credit/Source: https://github.com/maltanar/rosetta
-
 Rosetta is a project template to rapidly deploy Chisel accelerators on the Xilinx PYNQ platform. It uses the PlatformWrapper components from the fpga-tidbits framework for easy memory mapped register file management.
 
 ## Requirements
