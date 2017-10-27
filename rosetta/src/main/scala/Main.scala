@@ -4,7 +4,7 @@ import Chisel._
 import sys.process._
 
 object Settings {
-  val myInstFxn = { () => new DMAManagerUnit() }
+  val myInstFxn = { () => new StreamReaderUnit() }
 }
 
 // call this object's main method to generate Chisel Verilog and C++ emulation

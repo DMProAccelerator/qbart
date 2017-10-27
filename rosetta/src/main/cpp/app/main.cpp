@@ -2,31 +2,83 @@
 
 #include "platform.h"
 
-#include "DMAManagerUnit.hpp"
-#include "ThresholdingUnit.hpp"
+// #include "ThresholdingUnit.hpp"
+// #include "StreamWriterUnit.hpp"
+#include "StreamReaderUnit.hpp"
 
 #define SIZE_MATRIX 10
 #define SIZE_THRESH 4
 
 using namespace std;
 
-void Run_DMAManagerUnit(WrapperRegDriver *platform);
 void Run_ThresholdingUnit(WrapperRegDriver *platform);
+void Run_StreamReaderUnit(WrapperRegDriver *platform);
+void Run_StreamWriterUnit(WrapperRegDriver *platform);
+
 
 int main()
 {
   WrapperRegDriver *platform = initPlatform();
 
-  Run_DMAManagerUnit(platform);
+  Run_StreamReaderUnit(platform);
 
   deinitPlatform(platform);
 
   return 0;
 }
 
+/*
+ * FPGA DRAM read/write test.
+ */
+void Run_StreamReaderUnit(WrapperRegDriver *platform) {
+  StreamReaderUnit t(platform);
+  // The fpgatidbits DMA components expects the number of bytes to divide 64.
+  // Using 4-byte words yield 16 * 4 = 64, which ensures divisibility.
+  cout << "Signature: " << hex << t.get_signature() << dec << endl;
 
-void Run_DMAManagerUnit(WrapperRegDriver *platform) {
-  DMAManagerUnit t(platform);
+  unsigned int ub = 0;
+  cout << "Enter upper bound of sum sequence, divisible by 16: " << endl;
+  cin >> ub;
+
+  if(ub % 16 != 0) {
+    cout << "Error: Upper bound must be divisible by 16." << endl;
+    return;
+  }
+
+  unsigned int *host_buffer = new unsigned int[ub];
+  unsigned int buffer_size = ub * sizeof(unsigned int);
+  unsigned int expected = ub * (ub + 1) / 2;
+
+  for (unsigned int i = 0; i < ub; i++) {
+    host_buffer[i] = i + 1;
+  }
+
+  void *dram_buffer = platform->allocAccelBuffer(buffer_size);
+  platform->copyBufferHostToAccel(host_buffer, dram_buffer, buffer_size);
+
+  t.set_baseAddr((AccelDblReg) dram_buffer);
+  t.set_byteCount(buffer_size);
+
+  t.set_start(1);
+
+  while(t.get_finished() != 1);
+
+  platform->deallocAccelBuffer(dram_buffer);
+  delete [] host_buffer;
+
+  AccelReg res = t.get_sum();
+  cout << "Result: " << res << " Expected: " << expected << endl;
+  unsigned int cc = t.get_cc();
+  cout << "CC: " << cc << "CC/Word: " << (float) cc / (float) ub << endl;
+  t.set_start(0);
+}
+
+
+/*
+ * FPGA DRAM read/write test.
+ */
+void Run_StreamWriterUnit(WrapperRegDriver *platform) {
+  StreamWriterUnit t(platform);
 
   cout << "Signature: " << hex << t.get_signature() << dec << endl;
 
@@ -46,7 +98,9 @@ void Run_DMAManagerUnit(WrapperRegDriver *platform) {
   t.set_start(0);
 }
 
-
+/*
+ * FPGA thresholding prototype.
+ */
 void Run_ThresholdingUnit(WrapperRegDriver *platform) {
   ThresholdingUnit t(platform);
 
@@ -98,3 +152,4 @@ void Run_ThresholdingUnit(WrapperRegDriver *platform) {
 
   cout << "CC: " << t.get_cc() << endl;
 }
+
