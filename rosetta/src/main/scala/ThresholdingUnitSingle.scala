@@ -14,7 +14,7 @@ class ThresholdingUnit extends RosettaAccelerator {
   val io = new RosettaAcceleratorIF(numMemPorts) {
     val matrix = Decoupled(UInt(INPUT, width = 32)).flip()
     val size = UInt(INPUT, width = 32)
-    val op = Vec.fill(4) { UInt(INPUT, width = 32) }
+    val vector = Vec.fill(8) { UInt(INPUT, width = 32) }
     val start = Bool(INPUT)
     val count = Decoupled(UInt(OUTPUT, width = 32))
     val cc = UInt(OUTPUT, width = 32)
@@ -26,11 +26,6 @@ class ThresholdingUnit extends RosettaAccelerator {
   val r_accumulator = Reg(init = UInt(0, 32))
   val r_index = Reg(init = UInt(0, 32))
   val r_cc = Reg(init = UInt(0, 32))
-
-  io.signature := makeDefaultSignature()
-
-  r_cc := r_cc + UInt(1)
-  io.cc := r_cc
 
   // Default values.
   io.count.valid := Bool(false)
@@ -51,7 +46,7 @@ class ThresholdingUnit extends RosettaAccelerator {
       }
       .elsewhen (io.matrix.valid) {
         r_accumulator := r_accumulator +
-          (UInt(io.matrix.bits) >= UInt(io.op(r_index)))
+          (UInt(io.matrix.bits) >= UInt(io.vector(r_index)))
         r_index := r_index + UInt(1)
       }
     }
@@ -65,4 +60,15 @@ class ThresholdingUnit extends RosettaAccelerator {
       }
     }
   }
+
+  io.signature := makeDefaultSignature()
+
+  io.cc := rCC
+  when (!io.start) {
+    rCC := UInt(0)
+  }
+  .elsewhen (io.start & !io.finished) {
+    rCC := rCC + UInt(1)
+  }
+  io.signature := makeDefaultSignature()
 }

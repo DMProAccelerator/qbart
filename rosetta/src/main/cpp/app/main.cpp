@@ -27,6 +27,7 @@ int main()
   return 0;
 }
 
+
 /*
  * FPGA DRAM read/write test.
  */
@@ -47,11 +48,12 @@ void Run_StreamReaderUnit(WrapperRegDriver *platform) {
 
   unsigned int *host_buffer = new unsigned int[ub];
   unsigned int buffer_size = ub * sizeof(unsigned int);
-  unsigned int expected = ub * (ub + 1) / 2;
+  unsigned int expected = 42;
 
-  for (unsigned int i = 0; i < ub; i++) {
-    host_buffer[i] = i + 1;
-  }
+  host_buffer[0] = 1;
+  host_buffer[1] = 2;
+  host_buffer[2] = 39;
+  host_buffer[3] = 1337
 
   void *dram_buffer = platform->allocAccelBuffer(buffer_size);
   platform->copyBufferHostToAccel(host_buffer, dram_buffer, buffer_size);
@@ -66,90 +68,90 @@ void Run_StreamReaderUnit(WrapperRegDriver *platform) {
   platform->deallocAccelBuffer(dram_buffer);
   delete [] host_buffer;
 
-  AccelReg res = t.get_sum();
+  AccelReg res = t.get_out();
   cout << "Result: " << res << " Expected: " << expected << endl;
   unsigned int cc = t.get_cc();
-  cout << "CC: " << cc << "CC/Word: " << (float) cc / (float) ub << endl;
+  cout << "CC: " << cc << " CC/Word: " << (float) cc / (float) ub << endl;
   t.set_start(0);
 }
 
 
-/*
- * FPGA DRAM read/write test.
- */
-void Run_StreamWriterUnit(WrapperRegDriver *platform) {
-  StreamWriterUnit t(platform);
+// /*
+//  * FPGA DRAM read/write test.
+//  */
+// void Run_StreamWriterUnit(WrapperRegDriver *platform) {
+//   StreamWriterUnit t(platform);
 
-  cout << "Signature: " << hex << t.get_signature() << dec << endl;
+//   cout << "Signature: " << hex << t.get_signature() << dec << endl;
 
-  void *dram_buffer = platform->allocAccelBuffer(sizeof(uint32_t));
+//   void *dram_buffer = platform->allocAccelBuffer(sizeof(uint32_t));
 
-  t.set_addr((AccelDblReg) dram_buffer);
-  t.set_start(1);
+//   t.set_baseAddr((AccelDblReg) dram_buffer);
+//   t.set_start(1);
 
-  uint32_t result;
+//   uint32_t result;
 
-  platform->copyBufferAccelToHost(dram_buffer, &result, sizeof(uint32_t));
+//   platform->copyBufferAccelToHost(dram_buffer, &result, sizeof(uint32_t));
 
-  cout << "Unit wrote: " << t.get_out() << endl;
-  cout << "CPU read: "<< result << endl;
+//   cout << "Unit wrote: " << t.get_out() << endl;
+//   cout << "CPU read: "<< result << endl;
 
-  platform->deallocAccelBuffer(dram_buffer);
-  t.set_start(0);
-}
+//   platform->deallocAccelBuffer(dram_buffer);
+//   t.set_start(0);
+// }
 
-/*
- * FPGA thresholding prototype.
- */
-void Run_ThresholdingUnit(WrapperRegDriver *platform) {
-  ThresholdingUnit t(platform);
 
-  cout << "Signature: " << hex << t.get_signature() << dec << endl;
+// /*
+//  * FPGA thresholding prototype.
+//  */
+// void Run_ThresholdingUnit(WrapperRegDriver *platform) {
+//   ThresholdingUnit t(platform);
 
-  srand(time(NULL));
+//   cout << "Signature: " << hex << t.get_signature() << dec << endl;
 
-  uint32_t matrix[SIZE_MATRIX];
-  uint32_t threshold[SIZE_THRESH];
-  uint32_t result[SIZE_MATRIX];
+//   srand(time(NULL));
 
-  for (int i = 0; i < SIZE_MATRIX; i++) {
-    matrix[i] = rand() % 256;
-  }
-  for (int i = 0; i < SIZE_THRESH; i++) {
-    threshold[i] = rand() % 256;
-  }
+//   uint32_t matrix[SIZE_MATRIX];
+//   uint32_t threshold[SIZE_THRESH];
+//   uint32_t result[SIZE_MATRIX];
 
-  // Calculate results.
-  for (int i = 0; i < SIZE_MATRIX; i++) {
-    uint32_t x = matrix[i];
-    uint32_t count = 0;
-    for (int j = 0; j < SIZE_THRESH; j++) {
-      count += (x >= threshold[j]);
-    }
-    result[i] = count;
-  }
+//   for (int i = 0; i < SIZE_MATRIX; i++) {
+//     matrix[i] = rand() % 256;
+//   }
+//   for (int i = 0; i < SIZE_THRESH; i++) {
+//     threshold[i] = rand() % 256;
+//   }
 
-  t.set_op_0(threshold[0]);
-  t.set_op_1(threshold[1]);
-  t.set_op_2(threshold[2]);
-  t.set_op_3(threshold[3]);
+//   // Calculate results.
+//   for (int i = 0; i < SIZE_MATRIX; i++) {
+//     uint32_t x = matrix[i];
+//     uint32_t count = 0;
+//     for (int j = 0; j < SIZE_THRESH; j++) {
+//       count += (x >= threshold[j]);
+//     }
+//     result[i] = count;
+//   }
 
-  t.set_size(SIZE_THRESH);
+//   t.set_op_0(threshold[0]);
+//   t.set_op_1(threshold[1]);
+//   t.set_op_2(threshold[2]);
+//   t.set_op_3(threshold[3]);
 
-  for (int i = 0; i < SIZE_MATRIX; i++) {
-    t.set_matrix_bits(matrix[i]);
-    t.set_matrix_valid(1);
-    t.set_start(1);
+//   t.set_size(SIZE_THRESH);
 
-    while (t.get_count_valid() == 0);
+//   for (int i = 0; i < SIZE_MATRIX; i++) {
+//     t.set_matrix_bits(matrix[i]);
+//     t.set_matrix_valid(1);
+//     t.set_start(1);
 
-    cout << "Result: " << t.get_count_bits() << " Expected: " << result[i]
-      << endl;
+//     while (t.get_count_valid() == 0);
 
-    t.set_start(0);
-    t.set_matrix_valid(0);
-  }
+//     cout << "Result: " << t.get_count_bits() << " Expected: " << result[i]
+//       << endl;
 
-  cout << "CC: " << t.get_cc() << endl;
-}
+//     t.set_start(0);
+//     t.set_matrix_valid(0);
+//   }
 
+//   cout << "CC: " << t.get_cc() << endl;
+// }
