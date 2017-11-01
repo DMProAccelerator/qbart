@@ -41,18 +41,28 @@ def classification_client(qnn_pickle, image_list, server_name_ip_port_tuples):
         print("Could not connect!")
         s.close()
     
+    # First we send the QNN pickle.
+    qnn_path = "gtsrb-w1a1.pickle"
+    qnn_size = os.path.getsize(qnn_path)
+    qnn_size = bin(qnn_size)[2:].zfill(32) # TODO: Make sure you understand this encoding.
+    the_qnn = open(qnn_path, "rb")
+    the_qnn_to_send = the_qnn.read()
+    s.send(qnn_size)
+    s.sendall(the_qnn_to_send)
+
     # Alright, so now we have active sockets, let's send 'em files.
     imagePath = "50.jpg"
     theFile = open(imagePath, 'rb')
     sendableFile = theFile.read()
+    theFile.close()
     
     
     # Sending filename to server so it knows the filename
-    filename = imagePath
-    size = len(filename)
-    size = bin(size)[2:].zfill(16)
+    size = len(imagePath)
+    size = bin(size)[2:].zfill(32)
+    print(size)
     s.send(size)
-    s.send(filename)
+    s.send(imagePath)
 
     # Sending filesize to server so it knows the filesize
     filesize = os.path.getsize(imagePath)
