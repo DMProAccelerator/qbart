@@ -3,22 +3,18 @@ package Prototypes
 import Chisel._
 
 class ThresholdThreshInput(val n: Int) extends Bundle {
-    val in = Vec( n, Bits(INPUT, 8) )
+    val in = Vec( n, UInt(INPUT, width = 8) )
     val en = Vec( n, Bool(INPUT) )
 
     override def cloneType: this.type = new ThresholdThreshInput(4).asInstanceOf[this.type]
-}
-
-class ThresholdElementInput extends Bundle {
-    val element = Bits(INPUT, 8)
 }
 
 class Threshold(val n: Int) extends Module {
     val io = new Bundle{
         val start = Bool(INPUT)
         val thresh = Decoupled( new ThresholdThreshInput(n) ).flip()
-        val in = Decoupled( new ThresholdElementInput() ).flip()
-        val out = Valid(Bits(width = 8))
+        val element = Decoupled( UInt(width = 8) ).flip()
+        val out = Decoupled( UInt(width = 8) )
         val cycle = UInt(OUTPUT)
 
         val state_out = UInt(OUTPUT)
@@ -54,7 +50,7 @@ class Threshold(val n: Int) extends Module {
 
     // Default OUTPUT values
     io.cycle := cycle
-    io.in.ready := !p_element
+    io.element.ready := !p_element
     io.thresh.ready := !p_thresh
     io.out.bits := UInt(255)
     io.out.valid := Bool(false)
@@ -84,9 +80,9 @@ class Threshold(val n: Int) extends Module {
                 }
             }
 
-            when( io.in.valid && !p_element ) {
+            when( io.element.valid && !p_element ) {
                 // There is valid data on the line, and unit is ready to receive.
-                element := io.in.bits.element
+                element := io.element.bits
                 p_element := Bool(true)
             }
 
@@ -102,7 +98,9 @@ class Threshold(val n: Int) extends Module {
             p_thresh := Bool(true)
             io.out.valid := Bool(true)
             io.out.bits := (cycle - UInt(1)) * UInt(n) + PopCount( cmp_output )
-            state := s_idle
+            when( io.out.ready ) {
+                state := s_idle
+            }
         }
     }
 }
@@ -125,8 +123,8 @@ class ThresholdTests(c: Threshold) extends Tester(c) {
         poke( c.io.start, 0 )
 
         // Give the matrix element
-        poke( c.io.in.bits.element, inputs(i) )
-        poke( c.io.in.valid, 1 )
+        poke( c.io.element.bits, inputs(i) )
+        poke( c.io.element.valid, 1 )
 
         // Give the thresholds
         poke(c.io.thresh.bits.in(0), thresholds(0) )
@@ -148,7 +146,7 @@ class ThresholdTests(c: Threshold) extends Tester(c) {
         step( 1 )
 
 
-        poke(c.io.in.valid, 0)
+        poke(c.io.element.valid, 0)
         poke(c.io.thresh.valid, 0)
 
         // Check outputs
@@ -159,16 +157,16 @@ class ThresholdTests(c: Threshold) extends Tester(c) {
 
         step( 1 )
 
-        expect( c.io.element_out, inputs(i) )
-
+        poke( c.io.out.ready, 1 )
 
         expect( c.io.state_out, 2 )
         expect( c.io.out.valid, 1 )
         expect( c.io.cycle, 1 )
-
         expect( c.io.out.bits, outputs(i) )
 
         step( 10 )
+
+        poke( c.io.out.ready, 0 )
     }
 }
 
@@ -183,7 +181,7 @@ class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
         // Start the unit
         poke( c.io.start, 1 )
 
-        // while ( peekAt(c.io.in.ready) == 0 && peekAt(c.io.thresh.ready) == 0 ) {
+        // while ( peekAt(c.io.element.ready) == 0 && peekAt(c.io.thresh.ready) == 0 ) {
         step(10)
         // }
 
@@ -191,14 +189,14 @@ class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
         // And that the unit is now ready to receive.
         expect( c.io.cycle, 0 )
         expect( c.io.out.valid, 0 )
-        expect( c.io.in.ready, 1 )
+        expect( c.io.element.ready, 1 )
         expect( c.io.thresh.ready, 1 )
 
         poke( c.io.start, 0 )
 
         // Give the matrix element
-        poke( c.io.in.bits.element, inputs(i) )
-        poke( c.io.in.valid, 1 )
+        poke( c.io.element.bits, inputs(i) )
+        poke( c.io.element.valid, 1 )
 
         // Give the first two thresholds
         poke(c.io.thresh.bits.in(0), thresholds(0) )
@@ -217,8 +215,8 @@ class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
         poke( c.io.thresh.valid, 0 )
 
         // Data is fed to register, so no need to care about this.
-        poke(c.io.in.bits.element, 0)
-        poke(c.io.in.valid, 0)
+        poke(c.io.element.bits, 0)
+        poke(c.io.element.valid, 0)
 
         step(1)
 
@@ -250,10 +248,13 @@ class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
             step(1)
         }
 
+        step(10)
+        poke( c.io.out.ready, 1 )
         expect( c.io.out.valid, 1 )
         expect( c.io.out.bits, outputs(i) )
         expect( c.io.cycle, num_cycles(i) )
 
         step(1)
+        poke( c.io.out.ready, 0 )
     }
 }
