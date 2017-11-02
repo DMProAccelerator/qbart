@@ -14,10 +14,12 @@ def load_qnn(qnn_filepath):
         logging.error("There isn't a file in the specified QNN-location.")
         raise ValueError("The file specified in qnn_path doesn't exist, or read permission denied.")
                                 
-    qnn = pickle.load(open(qnn_filepath, "rb"))
+    qnn = open(qnn_filepath, "rb")
+    qnn_loaded = qnn.read()
+    qnn.close()
     logging.info("Successfully loaded QNN.")
     logging.debug("The QNN has the following contents: " + str(qnn))
-    return qnn
+    return qnn_loaded
 
 ###########################################################################################################
 ###########################################################################################################

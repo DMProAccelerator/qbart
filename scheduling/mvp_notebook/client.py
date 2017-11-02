@@ -1,7 +1,8 @@
 import socket
 import threading
 from time import sleep
-import os
+import sys
+import cPickle as pickle
 """
 The client has a QNN pickle and a set of images that it wants to send
 to one or several servers who will receive a copy of the QNN, and a subset each of the images.
@@ -23,7 +24,7 @@ def classification_client(qnn_pickle, image_list, server_name_ip_port_tuples):
     # Some credit is due to: http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
     #for server in server_name_ip_port_tuples:
     TCP_IP = 'localhost'
-    TCP_PORT = 9001
+    TCP_PORT = 9004
     BUFFER_SIZE = 1024
     
     active_sockets = []
@@ -36,41 +37,45 @@ def classification_client(qnn_pickle, image_list, server_name_ip_port_tuples):
     try:
         s.connect((TCP_IP, TCP_PORT))
         active_sockets.append(s)
-    except socket.error:
+    except:
         # If we can't connect, we cannot use this socket later in the program.
         print("Could not connect!")
         s.close()
     
     # First we send the QNN pickle.
-    qnn_path = "gtsrb-w1a1.pickle"
-    qnn_size = os.path.getsize(qnn_path)
-    qnn_size = bin(qnn_size)[2:].zfill(32) # TODO: Make sure you understand this encoding.
-    the_qnn = open(qnn_path, "rb")
-    the_qnn_to_send = the_qnn.read()
+    qnn_size = sys.getsizeof(qnn_pickle)
+    print(qnn_size)
+    qnn_size = bin(qnn_size)[2:].zfill(32)
+    print(qnn_size)
     s.send(qnn_size)
-    s.sendall(the_qnn_to_send)
+    s.sendall(qnn_pickle)
 
     # Alright, so now we have active sockets, let's send 'em files.
-    imagePath = "50.jpg"
-    theFile = open(imagePath, 'rb')
-    sendableFile = theFile.read()
-    theFile.close()
+    image_list_pickled = pickle.dumps(image_list)
     
-    
-    # Sending filename to server so it knows the filename
-    size = len(imagePath)
-    size = bin(size)[2:].zfill(32)
-    print(size)
-    s.send(size)
-    s.send(imagePath)
-
-    # Sending filesize to server so it knows the filesize
-    filesize = os.path.getsize(imagePath)
+    # Send size of image_list_pickle and the actual pickle to the server.
+    filesize = sys.getsizeof(image_list_pickled)
     filesize = bin(filesize)[2:].zfill(32) # encode filesize as 32 bit binary
     s.send(filesize)
-
-    s.sendall(sendableFile)
-    print("The file has been sent")
+    s.sendall(image_list_pickled)
+    print("The image list has been sent")
+    
+    # Now we wait until we get our darn classifications back.
+    classifications_pickle_size = s.recv(32)
+    classifications_pickle_size = int(classifications_pickle_size, 2)
+    
+    classifications_pickle_chunks = []
+    chunksize = 4096
+    while classifications_pickle_size > 0:
+	if classifications_pickle_size < chunksize:
+		chunksize = classifications_pickle_size
+	classifications_pickle_chunks.append(s.recv(chunksize))
+	classifications_pickle_size -= chunksize
+    
+    classifications_pickle = "".join(classifications_pickle_chunks)
+    classifications_list_as_ints = pickle.loads(classifications_pickle)
+    
     s.close()
 
-classification_client(None, None, None)
+    return classifications_list_as_ints
+

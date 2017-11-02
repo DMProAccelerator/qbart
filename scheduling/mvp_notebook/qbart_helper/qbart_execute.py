@@ -2,7 +2,7 @@ import logging
 from time import time
 import numpy as np
 
-def qbart_execute(qnn, images, image_classes):
+def qbart_execute(qnn, images):
     logging.getLogger()
     logging.info("Starting the timer to time QBART.")
     qbart_start = time()
@@ -58,7 +58,7 @@ def qbart_execute(qnn, images, image_classes):
                 # Raise error, we are asked to perform a layer operation we do not know.
                 raise ValueError("Invalid layer type.")
 
-        qbart_classifications.append(image_classes[np.argmax(activations)])
+        qbart_classifications.append(np.argmax(activations))
         logging.info("Finished classifying image " + str(image_index) + " of " + str(len(images)))
     
     qbart_end = time()

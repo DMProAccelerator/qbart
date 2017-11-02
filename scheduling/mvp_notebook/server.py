@@ -1,9 +1,10 @@
 import socket
 import threading
-import os
+import sys
 from time import sleep
 from QNN import *
 from qbart_helper import *
+import cPickle as pickle
 
 """
 A server is a slave PYNQ that is always ready to receive a new set of images alongside a QNN.
@@ -26,7 +27,7 @@ def classification_server():
     # Some credit is due to: http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
     #for server in server_name_ip_port_tuples:
     TCP_IP = 'localhost'
-    TCP_PORT = 9001
+    TCP_PORT = 9004
     BUFFER_SIZE = 1024
     
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,53 +41,54 @@ def classification_server():
     # and return the images.
     # Credit for filereceiving: Jesper Freesburg (StackOverflow)
     while True:
-        c, addr = s.accept()
+        print("Server socket is listening for TCP Connections on port "+str(TCP_PORT))
+	c, addr = s.accept()
         print("This is Ground Control. We read you Major Tom!")
         
-        # We receive the QNN and save it to the store
+        # We receive the QNN pickle
         print("Ready to receive QNN")
         qnn_size = c.recv(32)
-        print(qnn_size)
-        qnn_size = int(qnn_size, 2) # TODO: Find out what happens here as well.
-        print(qnn_size)
-        qnn_to_write = open("server_store/qnn.pickle", 'wb')
+        qnn_size = int(qnn_size, 2)
+        qnn_chunks_received = []
         chunksize = 4096
         while qnn_size > 0:
             if qnn_size < chunksize:
                 chunksize = qnn_size
-            data = c.recv(chunksize)
-            qnn_to_write.write(data)
+            qnn_chunks_received.append(c.recv(chunksize))
             qnn_size -= chunksize
-        qnn_to_write.close()
+        qnn_received = "".join(qnn_chunks_received)
+	
+	the_qnn = pickle.loads(qnn_received)
         
         
-        # First we receive the filename
-        print("Ready to receive filename of image")
-        size = c.recv(32)
-        print(size)
-        size = int(size, 2)
-        filename = c.recv(size)
+        # Then we receive the image list pickle in a very similar manner.
+        print("Ready to receive image pickle")
         filesize = c.recv(32)
+	print("Filesize in binary, ",filesize)
         filesize = int(filesize, 2)
-        
-        print("Ready to receive image file")
-        file_to_write = open("test_images/thefile.jpg", 'wb')
-        chunksize = 4096
+        print("Filesize in bits, ",filesize)
+        print("Ready to receive image files")
+        image_list_chunks = []
+	chunksize = 4096
         while filesize > 0:
             if filesize < chunksize:
                 chunksize = filesize
-            data = c.recv(chunksize)
-            file_to_write.write(data)
+            image_list_chunks.append(c.recv(chunksize))
             filesize -= chunksize
-        file_to_write.close()
+        image_list_pickle = "".join(image_list_chunks)
+	image_list = pickle.loads(image_list_pickle)
 
         # We have received a QNN and an image, now we classify.
-        # TODO: There is a very strange bug here. Using the libraries from the mvp notebook, it stops at image loading because jpgs are not supported. However, this works fine in the mvp notebook even though there are jpegs there too. The classification we should have is 50km/h, not "Priority road". Grr.
-        theQNN = load_qnn("server_store/qnn.pickle")
-        theImage = load_images("test_images",1,32,32,"Crc","BGR")
-        classification = qbart_execute(theQNN, theImage, ['20 Km/h', '30 Km/h', '50 Km/h', '60 Km/h', '70 Km/h', '80 Km/h', 'End 80 Km/h', '100 Km/h', '120 Km/h', 'No overtaking', 'No overtaking for large trucks', 'Priority crossroad', 'Priority road', 'Give way', 'Stop', 'No vehicles', 'Prohibited for vehicles with a permitted gross weight over 3.5t including their trailers, and for tractors except passenger cars and buses', 'No entry for vehicular traffic', 'Danger Ahead', 'Bend to left', 'Bend to right', 'Double bend (first to left)', 'Uneven road', 'Road slippery when wet or dirty', 'Road narrows (right)', 'Road works', 'Traffic signals', 'Pedestrians in road ahead', 'Children crossing ahead', 'Bicycles prohibited', 'Risk of snow or ice', 'Wild animals', 'End of all speed and overtaking restrictions', 'Turn right ahead', 'Turn left ahead', 'Ahead only', 'Ahead or right only', 'Ahead or left only', 'Pass by on right', 'Pass by on left', 'Roundabout', 'End of no-overtaking zone', 'End of no-overtaking zone for vehicles with a permitted gross weight over 3.5t including their trailers, and for tractors except passenger cars and buses'])
+	classifications_list_as_ints = qbart_execute(the_qnn, image_list) 
+        
+	# We are done! Now let's return the result to sender.
+	classifications_list_as_ints_pickled = pickle.dumps(classifications_list_as_ints)
+	classifications_pickle_size = sys.getsizeof(classifications_list_as_ints_pickled)
+	classifications_pickle_size = bin(classifications_pickle_size)[2:].zfill(32)
+	c.send(classifications_pickle_size)
+	c.sendall(classifications_list_as_ints_pickled)
 
-        print(classification)
+	# At this point the connection should be done, and we wait for a new round of qnn and images
     s.close()
 
 classification_server()
