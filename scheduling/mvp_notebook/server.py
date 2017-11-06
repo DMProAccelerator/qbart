@@ -22,73 +22,61 @@ on the PYNQ master screen.
 
 TODO: The server must also receive the config if it is to reshape some images. But in the end
 the images should already have been preprocessed by master PYNQ.
+
+TODO: The safe receive procedure should be abstracted as a separate method (?)
 """
 def classification_server():
-    # Some credit is due to: http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
-    #for server in server_name_ip_port_tuples:
-    TCP_IP = 'localhost'
-    TCP_PORT = 9004
-    BUFFER_SIZE = 1024
-    
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((TCP_IP,TCP_PORT))
-    
-    # We don't allow queueing of connections. There should be only one master on the network,
-    # and even so - if we allow waiting, there might be a severe performance penalty for such a run.
-    s.listen(0)
-    
-    # For every new connection, we receive a QNN and all images, classify the images,
-    # and return the images.
-    # Credit for filereceiving: Jesper Freesburg (StackOverflow)
-    while True:
-        print("Server socket is listening for TCP Connections on port "+str(TCP_PORT))
-	c, addr = s.accept()
-        print("This is Ground Control. We read you Major Tom!")
-        
-        # We receive the QNN pickle
-        print("Ready to receive QNN")
-        qnn_size = c.recv(32)
-        qnn_size = int(qnn_size, 2)
-        qnn_chunks_received = []
-        chunksize = 4096
-        while qnn_size > 0:
-            if qnn_size < chunksize:
-                chunksize = qnn_size
-            qnn_chunks_received.append(c.recv(chunksize))
-            qnn_size -= chunksize
-        qnn_received = "".join(qnn_chunks_received)
+	# Some credit is due to: http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
+	#for server in server_name_ip_port_tuples:
+	TCP_IP = ''
+	TCP_PORT = 10107
+	BUFFER_SIZE = 10000
 	
-	the_qnn = pickle.loads(qnn_received)
-        
-        
-        # Then we receive the image list pickle in a very similar manner.
-        print("Ready to receive image pickle")
-        filesize = c.recv(32)
-	print("Filesize in binary, ",filesize)
-        filesize = int(filesize, 2)
-        print("Filesize in bits, ",filesize)
-        print("Ready to receive image files")
-        image_list_chunks = []
-	chunksize = 4096
-        while filesize > 0:
-            if filesize < chunksize:
-                chunksize = filesize
-            image_list_chunks.append(c.recv(chunksize))
-            filesize -= chunksize
-        image_list_pickle = "".join(image_list_chunks)
-	image_list = pickle.loads(image_list_pickle)
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.bind((TCP_IP,TCP_PORT))
+	
+	# We don't allow queueing of connections. There should be only one master on the network,
+	# and even so - if we allow waiting, there might be a severe performance penalty for such a run.
+	s.listen(1)
+	
+	# For every new connection, we receive a QNN and all images, classify the images,
+	# and return the images.
+	while True:
+		print("Server socket is listening for TCP Connections on port "+str(TCP_PORT))
+		c, addr = s.accept()
+		print("This is Ground Control. We read you Major Tom!")
+		
+		# Get QNN pickle size
+		print("Getting QNN Pickle size")
+		qnn_bytes_to_receive = int(safe_receive(32, 32, c), 2)
+		print(qnn_bytes_to_receive)
+		
+		# Get QNN, unpickle it.
+		print("Getting QNN, and unpickling it.")
+		the_qnn = pickle.loads(safe_receive(qnn_bytes_to_receive, 1024, c))
+		print("The size of the unpickled QNN is...", sys.getsizeof(the_qnn))
+		
+		# Then we receive the image list pickle in a very similar manner.
+		print("Getting image pickle size")
+		image_list_bytes_to_receive = int(safe_receive(32,32, c), 2)
+		print("We get this image list byte count:", image_list_bytes_to_receive)	
+		print("Getting image list")
+		the_image_list = pickle.loads(safe_receive(image_list_bytes_to_receive, 1024, c))
+		
+		# We have received a QNN and an image, now we classify
+		print("Classifying...")
+		classifications_list_as_ints = qbart_execute(the_qnn, the_image_list) 
+		
+		# We are done! Now let's return the result to sender.
+		print("Returning classifications list...")
+		classifications_list_as_ints_pickled = pickle.dumps(classifications_list_as_ints)
+		classifications_pickle_size = len(classifications_list_as_ints_pickled)
+		classifications_pickle_size = bin(classifications_pickle_size)[2:].zfill(32)
+		
+		safe_send(classifications_pickle_size, 32, c)
+		safe_send(classifications_list_as_ints_pickled, int(classifications_pickle_size,2), c)
 
-        # We have received a QNN and an image, now we classify.
-	classifications_list_as_ints = qbart_execute(the_qnn, image_list) 
-        
-	# We are done! Now let's return the result to sender.
-	classifications_list_as_ints_pickled = pickle.dumps(classifications_list_as_ints)
-	classifications_pickle_size = sys.getsizeof(classifications_list_as_ints_pickled)
-	classifications_pickle_size = bin(classifications_pickle_size)[2:].zfill(32)
-	c.send(classifications_pickle_size)
-	c.sendall(classifications_list_as_ints_pickled)
-
-	# At this point the connection should be done, and we wait for a new round of qnn and images
-    s.close()
+	#	At this point the connection should be done, and we wait for a new round of qnn and images
+	s.close()
 
 classification_server()
