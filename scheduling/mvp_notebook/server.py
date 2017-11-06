@@ -29,7 +29,7 @@ def classification_server():
 	# Some credit is due to: http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
 	#for server in server_name_ip_port_tuples:
 	TCP_IP = ''
-	TCP_PORT = 10107
+	TCP_PORT = 64646
 	BUFFER_SIZE = 10000
 	
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,7 +62,7 @@ def classification_server():
 		print("We get this image list byte count:", image_list_bytes_to_receive)	
 		print("Getting image list")
 		the_image_list = pickle.loads(safe_receive(image_list_bytes_to_receive, 1024, c))
-		
+		print("I got ", len(the_image_list), "images!")
 		# We have received a QNN and an image, now we classify
 		print("Classifying...")
 		classifications_list_as_ints = qbart_execute(the_qnn, the_image_list) 

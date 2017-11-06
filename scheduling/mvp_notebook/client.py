@@ -1,3 +1,6 @@
+#!/usr/bin/env python2
+from multiprocessing.dummy import Pool as ThreadPool 
+import copy
 import socket
 import threading
 from time import sleep
@@ -21,11 +24,9 @@ TODO: Classification client must make one thread per server socket (or do we hav
 This function should be run as a separate thread, so that the client can also do some computation while it is waiting. This function
 will also spawn a thread for each server connection.
 """
-def classification_client(qnn_pickle_string, image_list, server_name_ip_port_tuples):
+def classification_client(qnn_pickle_string, image_list, server_list):
 	# First we check to see if servers are up and running.
 	#for server in server_name_ip_port_tuples:
-	TCP_IP = '192.168.1.5' #Solfrid
-	TCP_PORT = 10107
 	BUFFER_SIZE = 4096
 	
 	active_sockets = []
@@ -34,25 +35,50 @@ def classification_client(qnn_pickle_string, image_list, server_name_ip_port_tup
 	 
 	# We try to connect to the specified IP and PORT through our new socket.
 	# If we successfully connect, we add this to the list of open connections.
-	#try:
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	
-	s.connect((TCP_IP, TCP_PORT))
-	active_sockets.append(s)
-	#except:
-	# If we can't connect, we cannot use this socket later in the program.
-		#print("Could not connect!")
-		#s.close()
+	for ip_port in server_list:
+		try:
+			active_sockets.append(socket.create_connection(ip_port, timeout=100))
+		except:
+			# If we can't connect, we cannot use this socket later in the program.
+			print("Could not connect!")
+			s.close()
+	
+	argumentlist = []
+	
+	for socketnum in range(len(active_sockets)):
+		argumentlist.append([active_sockets[socketnum], socketnum, len(active_sockets), qnn_pickle_string, image_list])
+	
+	pool = ThreadPool(len(active_sockets))
+	results = map(sendandreceive, argumentlist)
+	return results
+
+def sendandreceive(argumentarray):
+	socket = argumentarray[0]
+	commrank = argumentarray[1]
+	commsize = argumentarray[2]
+	qnn = argumentarray[3]
+	image_list = copy.copy(argumentarray[4])
 	
 	# First we send the QNN pickle string.
-	qnn_size = len(qnn_pickle_string)
+	qnn_size = len(qnn)
 	print(qnn_size)
 	qnn_size = bin(qnn_size)[2:].zfill(32)
 	print(qnn_size)
-	safe_send(qnn_size, 32, s)
-	safe_send(qnn_pickle_string, int(qnn_size,2), s)
+	safe_send(qnn_size, 32, socket)
+	safe_send(qnn, int(qnn_size,2), socket)
 	
-	# Alright, so now we have active sockets, let's send 'em files.
+	
+	# Select the proper subset of images.
+	load_balanced_image_set = len(image_list)//commsize
+	
+	# If you are last, take the rest, even if it is not exactly even.
+	if commrank == commsize-1:
+		image_list = image_list[commrank*load_balanced_image_set:]
+	else:
+		image_list = image_list[commrank*load_balanced_image_set:load_balanced_image_set]
+	
+	# Pickle the image list partition
 	image_list_pickled_and_stringed = str(pickle.dumps(image_list))
 	
 	# Send size of image_list_pickle and the actual pickle to the server.
@@ -60,16 +86,16 @@ def classification_client(qnn_pickle_string, image_list, server_name_ip_port_tup
 	print(filesize)
 	filesize = bin(filesize)[2:].zfill(32) # encode filesize as 32 bit binary
 	print("Size of image list that is now being sent:", filesize)
-	safe_send(filesize, 32, s)
-	safe_send(image_list_pickled_and_stringed, int(filesize,2), s)
+	safe_send(filesize, 32, socket)
+	safe_send(image_list_pickled_and_stringed, int(filesize,2), socket)
 	print("The image list has been sent")
 	
 	# Now we wait until we get our darn classifications back.
-	classifications_pickle_size = int(safe_receive(32,32,s), 2)
+	classifications_pickle_size = int(safe_receive(32,32,socket), 2)
 	
-	classifications_pickle_string = safe_receive(classifications_pickle_size, 1024, s)
+	classifications_pickle_string = safe_receive(classifications_pickle_size, 1024, socket)
 	classifications_list_as_ints = pickle.loads(classifications_pickle_string)
 	
-	s.close()
-	
+	# Here sendreceivethreads should end, and we print all classifications.
+	socket.close()
 	return classifications_list_as_ints
