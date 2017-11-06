@@ -7,6 +7,7 @@ from time import sleep
 from qbart_helper import *
 import sys
 import cPickle as pickle
+
 """
 The client has a QNN pickle and a set of images that it wants to send
 to one or several servers who will receive a copy of the QNN, and a subset each of the images.
@@ -19,10 +20,6 @@ This entire setup depends on the server to have access to the same code base as 
 and one must manually configure ip-addresses and ports beforehand.
 
 It is also important to check if a certain server is available before we start, so we ping each of them to see which ones are available.
-TODO: Classification client must make one thread per server socket (or do we have to since the sockets have buffers?)
-
-This function should be run as a separate thread, so that the client can also do some computation while it is waiting. This function
-will also spawn a thread for each server connection.
 """
 def classification_client(qnn_pickle_string, image_list, server_list):
 	# First we check to see if servers are up and running.
@@ -41,8 +38,7 @@ def classification_client(qnn_pickle_string, image_list, server_list):
 			active_sockets.append(socket.create_connection(ip_port, timeout=100))
 		except:
 			# If we can't connect, we cannot use this socket later in the program.
-			print("Could not connect!")
-			s.close()
+			print("Could not connect to " + str(ip_port[0]))
 	
 	argumentlist = []
 	
@@ -50,7 +46,7 @@ def classification_client(qnn_pickle_string, image_list, server_list):
 		argumentlist.append([active_sockets[socketnum], socketnum, len(active_sockets), qnn_pickle_string, image_list])
 	
 	pool = ThreadPool(len(active_sockets))
-	results = map(sendandreceive, argumentlist)
+	results = pool.map(sendandreceive, argumentlist)
 	return results
 
 def sendandreceive(argumentarray):
@@ -70,13 +66,13 @@ def sendandreceive(argumentarray):
 	
 	
 	# Select the proper subset of images.
-	load_balanced_image_set = len(image_list)//commsize
+	load_balanced_image_set = len(image_list)/commsize
 	
 	# If you are last, take the rest, even if it is not exactly even.
 	if commrank == commsize-1:
 		image_list = image_list[commrank*load_balanced_image_set:]
 	else:
-		image_list = image_list[commrank*load_balanced_image_set:load_balanced_image_set]
+		image_list = image_list[commrank*load_balanced_image_set:(commrank+1)*load_balanced_image_set]
 	
 	# Pickle the image list partition
 	image_list_pickled_and_stringed = str(pickle.dumps(image_list))

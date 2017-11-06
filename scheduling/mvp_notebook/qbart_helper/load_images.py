@@ -54,7 +54,7 @@ def image_data_transform(image_path, file_extension,colsize, rowsize, data_layou
 	# Step 1: Check image format
 	if file_extension == ".ppm":
 		# Handle the image, we should support this format, but we dont yet (see below)
-		raise ValueError("We currently do NOT support ppms")
+		print("Itsa ppm!")
 	elif file_extension == ".jpg":
 		# Handle the image, we support this format.
 		print("It is a jpg!")
@@ -78,8 +78,13 @@ def image_data_transform(image_path, file_extension,colsize, rowsize, data_layou
 		if not (image_data_layout == data_layout):
 			image_order = {"r":0, "c":1, "C":2}
 			image = image.transpose(image_order[data_layout[0]], image_order[data_layout[1]], image_order[data_layout[2]])
-	
-	
+	elif file_extension == ".ppm":
+		image_data_layout = "rcC" # Is this assumption correct?
+		
+		if not (image_data_layout == data_layout):
+			image_order = {"r":0, "c":1, "C":2}
+			image = image.transpose(image_order[data_layout[0]], image_order[data_layout[1]], image_order[data_layout[2]])
+		
 	# Step 6: Rearrange channel ordering if needed.
 	if file_extension == ".jpg":
 		image_channel_order = "RGB"
@@ -92,7 +97,20 @@ def image_data_transform(image_path, file_extension,colsize, rowsize, data_layou
 			image[0] = (temp_img[im_ch_order[channel_order[0]]])
 			image[1] = (temp_img[im_ch_order[channel_order[1]]])
 			image[2] = (temp_img[im_ch_order[channel_order[2]]])
+	elif file_extension == ".ppm":
+		image_channel_order = "RGB"
+		
+		im_ch_order = {'R':0, 'G':1, 'B':2}
+		
+		# If the given images and what the QNN expects doesn't match, then...
+		if not(image_channel_order == channel_order):
+			temp_img = image.copy()
+			image.setflags(write=1)
+			image[0] = (temp_img[im_ch_order[channel_order[0]]])
+			image[1] = (temp_img[im_ch_order[channel_order[1]]])
+			image[2] = (temp_img[im_ch_order[channel_order[2]]])
 	
+	# Reshape done, we return the image.
 	return image
 ###########################################################################################################
 ###########################################################################################################
