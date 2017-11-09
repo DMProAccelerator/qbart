@@ -1,11 +1,11 @@
 # target frequency for Vivado FPGA synthesis
-FREQ_MHZ := 150.0
+FREQ_MHZ := 50.0
 # controls whether Vivado will run in command-line or GUI mode
-VIVADO_MODE := batch # gui
+VIVADO_MODE := batch
 # which C++ compiler to use
 CC = g++
 # scp/rsync target to copy files to board
-BOARD_URI := xilinx@pynq:~/rosetta
+BOARD_URI := xilinx@bjorg:~/rosetta
 
 # other project settings
 SBT ?= sbt
@@ -48,7 +48,7 @@ hw_vivadoproj: hw_verilog
 	vivado -mode $(VIVADO_MODE) -source $(VIVADO_PROJ_SCRIPT) -tclargs $(TOP) $(HW_VERILOG) $(BITFILE_PRJNAME) $(BITFILE_PRJDIR) $(FREQ_MHZ)
 
 # launch Vivado in GUI mode with created project
-launch_vivado_gui:
+launch_vivado_gui: 
 	vivado -mode gui $(BITFILE_PRJDIR)/$(BITFILE_PRJNAME).xpr
 
 # run bitfile synthesis for the Vivado project
@@ -76,4 +76,4 @@ rsync:
 
 # remove everything that is built
 clean:
-	rm -rf $(BUILD_DIR) && rm -f *.o *.jou *.log
+	rm -rf $(BUILD_DIR)

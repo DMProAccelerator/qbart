@@ -17,7 +17,6 @@ import scala.collection.mutable.LinkedHashMap
 // -- just derive from the RosettaAccelerator class. but if you'd like to add new
 // interfaces or capabilities into the wrapper, this is the place.
 
-
 // interface definition for PYNQ accelerators
 // in your own accelerator, you can derive from this class and add as many new
 // members as you want like this:
@@ -35,7 +34,9 @@ import scala.collection.mutable.LinkedHashMap
 class RosettaAcceleratorIF(numMemPorts: Int) extends Bundle {
   // memory ports to access DRAM. you can use components from fpgatidbits.dma to
   // read and write data through these
-  val memPort = Vec.fill(numMemPorts) {new GenericMemoryMasterPort(PYNQParams.toMemReqParams())}
+  val memPort = Vec.fill(numMemPorts) {
+    new GenericMemoryMasterPort(PYNQParams.toMemReqParams())
+  }
   // use the signature field for sanity and version checks. auto-generated each
   // time the accelerator verilog is regenerated.
   val signature = UInt(OUTPUT, PYNQParams.csrDataBits)
@@ -45,9 +46,6 @@ class RosettaAcceleratorIF(numMemPorts: Int) extends Bundle {
   val sw = UInt(INPUT, 2)
   // user buttons BN3..0
   val btn = UInt(INPUT, 4)
-  // user RGB LEDs
-  val led4 = Vec(3, UInt(OUTPUT, 1))
-  val led5 = Vec(3, UInt(OUTPUT, 1))
 }
 
 // base class for Rosetta accelerators
@@ -60,7 +58,7 @@ abstract class RosettaAccelerator() extends Module {
 
   def hexcrc32(s: String): String = {
     import java.util.zip.CRC32
-    val crc=new CRC32
+    val crc = new CRC32
     crc.update(s.getBytes)
     crc.getValue.toHexString
   }
@@ -104,7 +102,7 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
     // AXI slave interface for control-status registers
     val csr = new AXILiteSlaveIF(p.memAddrBits, p.csrDataBits)
     // AXI master interfaces for reading and writing memory
-    val mem = Vec.fill (p.numMemPorts) {
+    val mem = Vec.fill(p.numMemPorts) {
       new AXIMasterIF(p.memAddrBits, p.memDataBits, p.memIDBits)
     }
     // user LEDs LD3..0
@@ -113,22 +111,17 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
     val sw = UInt(INPUT, 2)
     // user buttons BN3..0
     val btn = UInt(INPUT, 4)
-    // user RGB LEDs LD4, LD5
-    val led4_r = UInt(OUTPUT, 1)
-    val led4_g = UInt(OUTPUT, 1)
-    val led4_b = UInt(OUTPUT, 1)
-    val led5_r = UInt(OUTPUT, 1)
-    val led5_g = UInt(OUTPUT, 1)
-    val led5_b = UInt(OUTPUT, 1)
   }
   setName("PYNQWrapper")
   setModuleName("PYNQWrapper")
   // a list of files that will be needed for compiling drivers for platform
   val baseDriverFiles: Array[String] = Array[String](
-    "platform.h", "wrapperregdriver.h"
+    "platform.h",
+    "wrapperregdriver.h"
   )
   val platformDriverFiles = baseDriverFiles ++ Array[String](
-    "platform-xlnk.cpp", "xlnkdriver.hpp"
+    "platform-xlnk.cpp",
+    "xlnkdriver.hpp"
   )
 
   // instantiate the accelerator
@@ -146,17 +139,21 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
   // and by using a special register file command (see hack further down :)
   accel.reset := reset | regWrapperReset
   // separate out the mem port signals, won't map the to the regfile
-  val ownFilter = {x: (String, Bits) => !(x._1.startsWith("memPort"))}
+  val ownFilter = { x: (String, Bits) =>
+    !(x._1.startsWith("memPort"))
+  }
 
   import scala.collection.immutable.ListMap
-  val ownIO = ListMap(accel.io.flatten.filter(ownFilter).toSeq.sortBy(_._1):_*)
+  val ownIO = ListMap(accel.io.flatten.filter(ownFilter).toSeq.sortBy(_._1): _*)
 
   // each I/O is assigned to at least one register index, possibly more if wide
   // round each I/O width to nearest csrWidth multiple, sum, divide by csrWidth
   val wCSR = p.csrDataBits
-  def roundMultiple(n: Int, m: Int) = { (n + m-1) / m * m}
-  val fxn = {x: (String, Bits) => (roundMultiple(x._2.getWidth(), wCSR))}
-  val numRegs = ownIO.map(fxn).reduce({_+_}) / wCSR
+  def roundMultiple(n: Int, m: Int) = { (n + m - 1) / m * m }
+  val fxn = { x: (String, Bits) =>
+    (roundMultiple(x._2.getWidth(), wCSR))
+  }
+  val numRegs = ownIO.map(fxn).reduce({ _ + _ }) / wCSR
 
   // instantiate the register file
   val regAddrBits = log2Up(numRegs)
@@ -179,46 +176,50 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
   println("Signal signature mapped to single reg " + allocReg.toString)
   allocReg += 1
 
-  for((name, bits) <- ownIO) {
-    if(name != "signature") {
+  for ((name, bits) <- ownIO) {
+    if (name != "signature") {
       val w = bits.getWidth()
-      if(w > wCSR) {
+      if (w > wCSR) {
         // signal is wide, maps to several registers
         val numRegsToAlloc = roundMultiple(w, wCSR) / wCSR
         regFileMap(name) = (allocReg until allocReg + numRegsToAlloc).toArray
         // connect the I/O signal to the register file appropriately
-        if(bits.dir == INPUT) {
+        if (bits.dir == INPUT) {
           // concatanate all assigned registers, connect to input
-          bits := regFileMap(name).map(regFile.regOut(_)).reduce(Cat(_,_))
-          for(i <- 0 until numRegsToAlloc) {
+          bits := regFileMap(name).map(regFile.regOut(_)).reduce(Cat(_, _))
+          for (i <- 0 until numRegsToAlloc) {
             regFile.regIn(allocReg + i).valid := Bool(false)
           }
-        } else if(bits.dir == OUTPUT) {
-          for(i <- 0 until numRegsToAlloc) {
+        } else if (bits.dir == OUTPUT) {
+          for (i <- 0 until numRegsToAlloc) {
             regFile.regIn(allocReg + i).valid := Bool(true)
-            regFile.regIn(allocReg + i).bits := bits(i*wCSR+wCSR-1, i*wCSR)
+            regFile.regIn(allocReg + i).bits := bits(i * wCSR + wCSR - 1,
+                                                     i * wCSR)
           }
-        } else { throw new Exception("Wire in IO: "+name) }
+        } else { throw new Exception("Wire in IO: " + name) }
 
-        println("Signal " + name + " mapped to regs " + regFileMap(name).map(_.toString).reduce(_+" "+_))
+        println(
+          "Signal " + name + " mapped to regs " + regFileMap(name)
+            .map(_.toString)
+            .reduce(_ + " " + _))
         allocReg += numRegsToAlloc
       } else {
         // signal is narrow enough, maps to a single register
         regFileMap(name) = Array(allocReg)
         // connect the I/O signal to the register file appropriately
-        if(bits.dir == INPUT) {
+        if (bits.dir == INPUT) {
           // handle Bool input cases,"multi-bit signal to Bool" error
-          if(bits.getWidth() == 1) {
+          if (bits.getWidth() == 1) {
             bits := regFile.regOut(allocReg)(0)
           } else { bits := regFile.regOut(allocReg) }
           // disable internal write for this register
           regFile.regIn(allocReg).valid := Bool(false)
 
-        } else if(bits.dir == OUTPUT) {
+        } else if (bits.dir == OUTPUT) {
           // TODO don't always write (change detect?)
           regFile.regIn(allocReg).valid := Bool(true)
           regFile.regIn(allocReg).bits := bits
-        } else { throw new Exception("Wire in IO: "+name) }
+        } else { throw new Exception("Wire in IO: " + name) }
 
         println("Signal " + name + " mapped to single reg " + allocReg.toString)
         allocReg += 1
@@ -233,21 +234,15 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
   // ==========================================================================
   // rename signals to support Vivado interface inference
   io.csr.renameSignals("csr")
-  for(i <- 0 until p.numMemPorts) {io.mem(i).renameSignals(s"mem$i")}
+  for (i <- 0 until p.numMemPorts) { io.mem(i).renameSignals(s"mem$i") }
 
   // connections to board I/O
   accel.io.sw := io.sw
   accel.io.btn := io.btn
   io.led := accel.io.led
-  io.led4_b := accel.io.led4(0)
-  io.led4_g := accel.io.led4(1)
-  io.led4_r := accel.io.led4(2)
-  io.led5_b := accel.io.led5(0)
-  io.led5_g := accel.io.led5(1)
-  io.led5_r := accel.io.led5(2)
 
   // memory port adapters and connections
-  for(i <- 0 until accel.numMemPorts) {
+  for (i <- 0 until accel.numMemPorts) {
     // instantiate AXI request and response adapters for the mem interface
     val mrp = p.toMemReqParams()
     // read requests
@@ -269,7 +264,7 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
     // TODO handle this with own adapter?
     io.mem(i).writeData.bits.data := wrDataQ.bits
     // TODO fix this: forces all writes bytelanes valid!
-    io.mem(i).writeData.bits.strb := ~UInt(0, width=p.memDataBits/8)
+    io.mem(i).writeData.bits.strb := ~UInt(0, width = p.memDataBits / 8)
     // TODO fix this: write bursts won't work properly!
     io.mem(i).writeData.bits.last := Bool(true)
     io.mem(i).writeData.valid := wrDataQ.valid
@@ -282,7 +277,7 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
 
   // the accelerator may be using fewer memory ports than what the platform
   // exposes; plug the unused ones
-  for(i <- accel.numMemPorts until p.numMemPorts) {
+  for (i <- accel.numMemPorts until p.numMemPorts) {
     println("Plugging unused memory port " + i.toString)
     io.mem(i).driveDefaults()
   }
@@ -302,27 +297,28 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
   regFile.extIF.cmd.valid := Bool(false)
   regFile.extIF.cmd.bits.driveDefaults()
 
-  val sRead :: sReadRsp :: sWrite :: sWriteD :: sWriteRsp :: Nil = Enum(UInt(), 5)
+  val sRead :: sReadRsp :: sWrite :: sWriteD :: sWriteRsp :: Nil =
+    Enum(UInt(), 5)
   val regState = Reg(init = UInt(sRead))
 
-  val regModeWrite = Reg(init=Bool(false))
-  val regRdReq = Reg(init=Bool(false))
-  val regRdAddr = Reg(init=UInt(0, p.memAddrBits))
-  val regWrReq = Reg(init=Bool(false))
-  val regWrAddr = Reg(init=UInt(0, p.memAddrBits))
-  val regWrData = Reg(init=UInt(0, p.csrDataBits))
+  val regModeWrite = Reg(init = Bool(false))
+  val regRdReq = Reg(init = Bool(false))
+  val regRdAddr = Reg(init = UInt(0, p.memAddrBits))
+  val regWrReq = Reg(init = Bool(false))
+  val regWrAddr = Reg(init = UInt(0, p.memAddrBits))
+  val regWrData = Reg(init = UInt(0, p.csrDataBits))
   // AXI typically uses byte addressing, whereas regFile indices are
   // element indices -- so the AXI addr needs to be divided by #bytes
   // in one element to get the regFile ind
   // Note that this permits reading/writing only the entire width of one
   // register
-  val addrDiv = UInt(p.csrDataBits/8)
+  val addrDiv = UInt(p.csrDataBits / 8)
 
   when(!regModeWrite) {
     regFile.extIF.cmd.valid := regRdReq
     regFile.extIF.cmd.bits.read := Bool(true)
     regFile.extIF.cmd.bits.regID := regRdAddr / addrDiv
-  } .otherwise {
+  }.otherwise {
     regFile.extIF.cmd.valid := regWrReq
     regFile.extIF.cmd.bits.write := Bool(true)
     regFile.extIF.cmd.bits.regID := regWrAddr / addrDiv
@@ -331,122 +327,122 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
 
   // state machine for bridging register file reads/writes to AXI slave ops
   switch(regState) {
-      is(sRead) {
-        io.csr.readAddr.ready := Bool(true)
+    is(sRead) {
+      io.csr.readAddr.ready := Bool(true)
 
-        when(io.csr.readAddr.valid) {
-          regRdReq := Bool(true)
-          regRdAddr := io.csr.readAddr.bits.addr
-          regModeWrite := Bool(false)
-          regState := sReadRsp
-        }.otherwise {
-          regState := sWrite
-        }
-      }
-
-      is(sReadRsp) {
-        io.csr.readData.valid := regFile.extIF.readData.valid
-        when (io.csr.readData.ready & regFile.extIF.readData.valid) {
-          regState := sWrite
-          regRdReq := Bool(false)
-        }
-      }
-
-      is(sWrite) {
-        io.csr.writeAddr.ready := Bool(true)
-
-        when(io.csr.writeAddr.valid) {
-          regModeWrite := Bool(true)
-          regWrReq := Bool(false) // need to wait until data is here
-          regWrAddr := io.csr.writeAddr.bits.addr
-          regState := sWriteD
-        } .otherwise {
-          regState := sRead
-        }
-      }
-
-      is(sWriteD) {
-        io.csr.writeData.ready := Bool(true)
-        when(io.csr.writeData.valid) {
-          regWrData := io.csr.writeData.bits.data
-          regWrReq := Bool(true) // now we can set the request
-          regState := sWriteRsp
-        }
-      }
-
-      is(sWriteRsp) {
-        io.csr.writeResp.valid := Bool(true)
-        when(io.csr.writeResp.ready) {
-          regWrReq := Bool(false)
-          regState := sRead
-        }
+      when(io.csr.readAddr.valid) {
+        regRdReq := Bool(true)
+        regRdAddr := io.csr.readAddr.bits.addr
+        regModeWrite := Bool(false)
+        regState := sReadRsp
+      }.otherwise {
+        regState := sWrite
       }
     }
 
-    // ==========================================================================
-    // wrapper part 3: register driver generation functions
-    // these functions will be called to generate C++ code that accesses the
-    // register file that we have instantiated
-    // ==========================================================================
-
-    def makeRegReadFxn(regName: String): String = {
-      var fxnStr: String = ""
-      val regs = regFileMap(regName)
-      if(regs.size == 1) {
-        // single register read
-        fxnStr += "  AccelReg get_" + regName + "()"
-        fxnStr += " {return readReg(" + regs(0).toString + ");} "
-      } else if(regs.size == 2) {
-        // two-register read
-        // TODO this uses a hardcoded assumption about wCSR=32
-        if(wCSR != 32) throw new Exception("Violating assumption on wCSR=32")
-        fxnStr += "  AccelDblReg get_" + regName + "() "
-        fxnStr += "{ return (AccelDblReg)readReg("+regs(1).toString+") << 32 "
-        fxnStr += "| (AccelDblReg)readReg("+regs(0).toString+"); }"
-      } else { throw new Exception("Multi-reg reads not yet implemented") }
-
-      return fxnStr
+    is(sReadRsp) {
+      io.csr.readData.valid := regFile.extIF.readData.valid
+      when(io.csr.readData.ready & regFile.extIF.readData.valid) {
+        regState := sWrite
+        regRdReq := Bool(false)
+      }
     }
 
-    def makeRegWriteFxn(regName: String): String = {
-      var fxnStr: String = ""
-      val regs = regFileMap(regName)
-      if(regs.size == 1) {
-        // single register write
-        fxnStr += "  void set_" + regName + "(AccelReg value)"
-        fxnStr += " {writeReg(" + regs(0).toString + ", value);} "
-      } else if(regs.size == 2) {
-        // two-register write
-        // TODO this uses a hardcoded assumption about wCSR=32
-        if(wCSR != 32) throw new Exception("Violating assumption on wCSR=32")
-        fxnStr += "  void set_" + regName + "(AccelDblReg value)"
-        fxnStr += " { writeReg("+regs(0).toString+", (AccelReg)(value >> 32)); "
-        fxnStr += "writeReg("+regs(1).toString+", (AccelReg)(value & 0xffffffff)); }"
-      } else { throw new Exception("Multi-reg writes not yet implemented") }
+    is(sWrite) {
+      io.csr.writeAddr.ready := Bool(true)
 
-      return fxnStr
+      when(io.csr.writeAddr.valid) {
+        regModeWrite := Bool(true)
+        regWrReq := Bool(false) // need to wait until data is here
+        regWrAddr := io.csr.writeAddr.bits.addr
+        regState := sWriteD
+      }.otherwise {
+        regState := sRead
+      }
     }
 
-    def generateRegDriver(targetDir: String) = {
-      var driverStr: String = ""
-      val driverName: String = accel.name
-      var readWriteFxns: String = ""
-      for((name, bits) <- ownIO) {
-        if(bits.dir == INPUT) {
-          readWriteFxns += makeRegWriteFxn(name) + "\n"
-        } else if(bits.dir == OUTPUT) {
-          readWriteFxns += makeRegReadFxn(name) + "\n"
-        }
+    is(sWriteD) {
+      io.csr.writeData.ready := Bool(true)
+      when(io.csr.writeData.valid) {
+        regWrData := io.csr.writeData.bits.data
+        regWrReq := Bool(true) // now we can set the request
+        regState := sWriteRsp
       }
+    }
 
-      def statRegToCPPMapEntry(regName: String): String = {
-        val inds = regFileMap(regName).map(_.toString).reduce(_ + ", " + _)
-        return s""" {"$regName", {$inds}} """
+    is(sWriteRsp) {
+      io.csr.writeResp.valid := Bool(true)
+      when(io.csr.writeResp.ready) {
+        regWrReq := Bool(false)
+        regState := sRead
       }
-      val statRegs = ownIO.filter(x => x._2.dir == OUTPUT).map(_._1)
-      val statRegMap = statRegs.map(statRegToCPPMapEntry).reduce(_ + ", " + _)
+    }
+  }
 
-      driverStr += s"""
+  // ==========================================================================
+  // wrapper part 3: register driver generation functions
+  // these functions will be called to generate C++ code that accesses the
+  // register file that we have instantiated
+  // ==========================================================================
+
+  def makeRegReadFxn(regName: String): String = {
+    var fxnStr: String = ""
+    val regs = regFileMap(regName)
+    if (regs.size == 1) {
+      // single register read
+      fxnStr += "  AccelReg get_" + regName + "()"
+      fxnStr += " {return readReg(" + regs(0).toString + ");} "
+    } else if (regs.size == 2) {
+      // two-register read
+      // TODO this uses a hardcoded assumption about wCSR=32
+      if (wCSR != 32) throw new Exception("Violating assumption on wCSR=32")
+      fxnStr += "  AccelDblReg get_" + regName + "() "
+      fxnStr += "{ return (AccelDblReg)readReg(" + regs(1).toString + ") << 32 "
+      fxnStr += "| (AccelDblReg)readReg(" + regs(0).toString + "); }"
+    } else { throw new Exception("Multi-reg reads not yet implemented") }
+
+    return fxnStr
+  }
+
+  def makeRegWriteFxn(regName: String): String = {
+    var fxnStr: String = ""
+    val regs = regFileMap(regName)
+    if (regs.size == 1) {
+      // single register write
+      fxnStr += "  void set_" + regName + "(AccelReg value)"
+      fxnStr += " {writeReg(" + regs(0).toString + ", value);} "
+    } else if (regs.size == 2) {
+      // two-register write
+      // TODO this uses a hardcoded assumption about wCSR=32
+      if (wCSR != 32) throw new Exception("Violating assumption on wCSR=32")
+      fxnStr += "  void set_" + regName + "(AccelDblReg value)"
+      fxnStr += " { writeReg(" + regs(0).toString + ", (AccelReg)(value >> 32)); "
+      fxnStr += "writeReg(" + regs(1).toString + ", (AccelReg)(value & 0xffffffff)); }"
+    } else { throw new Exception("Multi-reg writes not yet implemented") }
+
+    return fxnStr
+  }
+
+  def generateRegDriver(targetDir: String) = {
+    var driverStr: String = ""
+    val driverName: String = accel.name
+    var readWriteFxns: String = ""
+    for ((name, bits) <- ownIO) {
+      if (bits.dir == INPUT) {
+        readWriteFxns += makeRegWriteFxn(name) + "\n"
+      } else if (bits.dir == OUTPUT) {
+        readWriteFxns += makeRegReadFxn(name) + "\n"
+      }
+    }
+
+    def statRegToCPPMapEntry(regName: String): String = {
+      val inds = regFileMap(regName).map(_.toString).reduce(_ + ", " + _)
+      return s""" {"$regName", {$inds}} """
+    }
+    val statRegs = ownIO.filter(x => x._2.dir == OUTPUT).map(_._1)
+    val statRegMap = statRegs.map(statRegToCPPMapEntry).reduce(_ + ", " + _)
+
+    driverStr += s"""
   #ifndef ${driverName}_H
   #define ${driverName}_H
   #include "wrapperregdriver.h"
@@ -488,10 +484,11 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
   #endif
       """
 
-      import java.io._
-      val writer = new PrintWriter(new File(targetDir+"/"+driverName+".hpp" ))
-      writer.write(driverStr)
-      writer.close()
-      println("=======> Driver written to "+driverName+".hpp")
-    }
+    import java.io._
+    val writer = new PrintWriter(
+      new File(targetDir + "/" + driverName + ".hpp"))
+    writer.write(driverStr)
+    writer.close()
+    println("=======> Driver written to " + driverName + ".hpp")
+  }
 }
