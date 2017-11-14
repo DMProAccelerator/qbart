@@ -55,11 +55,13 @@ class TestDMAThresholder(p: PlatformWrapperParams) extends GenericAccelerator(p)
   reader.out <> handler.in
   reader.req <> io.memPort(0).memRdReq
   io.memPort(0).memRdRsp <> reader.rsp
+  plugMemWritePort(0)
 
   handler.out <> writer.in
   writer.req <> io.memPort(1).memWrReq
   writer.wdat <> io.memPort(1).memWrDat
   io.memPort(1).memWrRsp <> writer.rsp
+  plugMemReadPort(1)
 
   io.cc := rCC
   when (!io.start) {
@@ -80,8 +82,9 @@ class DMAHandler(w: Int) extends Module {
     val finished = Bool(OUTPUT)
     val out = Decoupled(UInt(OUTPUT, width = w))
   }
+  val numCompareUnits = 32
 
-  val thresholder = Module(new Thresholder(w)).io
+  val thresholder = Module(new Threshold( numCompareUnits )).io
 
   val bytesPerElem = w / 8
 
@@ -91,23 +94,37 @@ class DMAHandler(w: Int) extends Module {
   val rThresholds = Vec.fill(20) { Reg(init = UInt(0, width = w)) }
   val rOut = Reg(init = UInt(0, width = w))
   val rIndex = Reg(init = UInt(0, 32))
-  val rMatrixElem = Reg(init = UInt(0, width = w))
-  val rMatrixValid = Reg(init = Bool(false))
+
   val rThresholdStart = Reg(init = Bool(false))
+  val rThresholdIndex = Reg(init = UInt(0, width = 32))
+  val rThresholdValid = Reg(init = Bool(false))
+  val rOutReady = Reg(init = Bool(false))
+
+    // printf("State %d   runThreshold %d\n", rState, sApplyThreshold)
+    // printf("rIndex %d\n", rIndex)
+  rOutReady := Bool(false)
 
   io.finished := Bool(false)
   io.in.ready := Bool(false)
   io.out.valid := Bool(false)
-  io.out.bits := thresholder.count.bits
+  io.out.bits := thresholder.out.bits
 
-  thresholder.matrix.bits := rMatrixElem
-  thresholder.matrix.valid := rMatrixValid
-  thresholder.start := rThresholdStart
-  thresholder.size := io.threshCount
+  thresholder.element.bits := UInt(255)
+  thresholder.element.valid := Bool(false)
+  thresholder.start := Bool(false)
+  thresholder.thresh.valid := rThresholdValid
+  thresholder.out.ready := rOutReady
 
-  for (i <- 0 to rThresholds.size - 1) {
-    thresholder.threshold(i) := rThresholds(i)
+  for ( i <- 0 until numCompareUnits ) {
+      thresholder.thresh.bits.in(i) := rThresholds( rThresholdIndex + UInt(i) )
+      thresholder.thresh.bits.en(i) := Bool(true)
+
+      when( rThresholdIndex + UInt(i) >= io.threshCount ) {
+          thresholder.thresh.bits.en(i) := Bool(false)
+      }
   }
+
+
 
   switch (rState) {
     is (sIdle) {
@@ -133,22 +150,35 @@ class DMAHandler(w: Int) extends Module {
         rState := sFinished
       }
       .otherwise {
-        io.in.ready := Bool(true)
-        when (io.in.valid) {
-          rIndex := rIndex + UInt(1)
-          rMatrixElem := io.in.bits
-          rMatrixValid := Bool(true)
-          rThresholdStart := Bool(true)
-          rState := sApplyThreshold
+          when(thresholder.element.ready) {
+              io.in.ready := Bool(true)
+
+            when (io.in.valid) {
+              rIndex := rIndex + UInt(1)
+
+              thresholder.element.bits := io.in.bits
+              thresholder.element.valid := Bool(true)
+              thresholder.start := Bool(true)
+
+              rThresholdValid := Bool(true)
+              rThresholdIndex := UInt(0)
+
+              rState := sApplyThreshold
+          }
         }
       }
     }
     is (sApplyThreshold) {
-      when (thresholder.count.valid) {
+        rThresholdValid := Bool(true)
+        rThresholdIndex := rThresholdIndex + UInt(numCompareUnits)
+
+
+      when (thresholder.out.valid) {
         io.out.valid := Bool(true)
+        rThresholdValid := Bool(false)
+
         when (io.out.ready) {
-          rThresholdStart := Bool(false)
-          rMatrixValid := Bool(false)
+          rOutReady := Bool(true)
           rState := sReadMatrix
         }
       }
@@ -157,61 +187,6 @@ class DMAHandler(w: Int) extends Module {
       io.finished := Bool(true)
       when (!io.start) {
         rState := sIdle
-      }
-    }
-  }
-}
-
-
-class Thresholder(w: Int) extends Module {
-  val io = new Bundle {
-    val matrix = Decoupled(UInt(INPUT, width = w)).flip()
-    val size = UInt(INPUT, width = 32)
-    val threshold = Vec.fill(255) { UInt(INPUT, width = w) }
-    val start = Bool(INPUT)
-    val finished = Bool(OUTPUT)
-    val count = Decoupled(UInt(OUTPUT, width = 32))
-    val cc = UInt(OUTPUT, width = 32)
-  }
-
-  val sIdle :: sRunning :: sFinished :: Nil = Enum(UInt(), 3)
-
-  val rState = Reg(init = sIdle)
-  val rCount = Reg(init = UInt(0, 32))
-  val rIndex = Reg(init = UInt(0, 32))
-  val rCC = Reg(init = UInt(0, 32))
-
-  io.finished := Bool(false)
-  io.matrix.ready := Bool(false)
-  io.count.valid := Bool(false)
-  io.count.bits := rCount
-
-  switch (rState) {
-    is (sIdle) {
-      rCount := UInt(0)
-      rIndex := UInt(0)
-      when (io.start) {
-        rState := sRunning
-      }
-    }
-    is (sRunning) {
-      when (rIndex === io.size) {
-        rState := sFinished
-      }
-      .elsewhen (io.matrix.valid) {
-        rCount := rCount +
-          (UInt(io.matrix.bits) >= UInt(io.threshold(rIndex)))
-        rIndex := rIndex + UInt(1)
-      }
-    }
-    is (sFinished) {
-      io.finished := Bool(true)
-      when (!io.start) {
-        rState := sIdle
-      }
-      .otherwise {
-        io.count.valid := Bool(true)
-        io.matrix.ready := Bool(true)
       }
     }
   }

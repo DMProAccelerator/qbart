@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <math.h>
 #include <sys/time.h>
+#include <algorithm>
 
 #include "TestDMAThresholder.hpp"
 #include "platform.h"
@@ -75,6 +76,8 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     void *write_buffer = platform->allocAccelBuffer(buffer_size);
 
     fill(thresholds, T);
+    sort(thresholds, thresholds + T);
+
     fill(matrix, M);
 
     memcpy(host_buffer, thresholds, T * sizeof(uint64_t));
@@ -108,6 +111,7 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     platform->copyBufferAccelToHost(write_buffer, receive_buffer, buffer_size);
 
     compare(expected, receive_buffer);
+
     float cc = t.get_cc();
     printf("CC: %.2f CC/Word: %.2f\n", cc, cc / ub);
 
@@ -119,6 +123,7 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
 int main()
 {
+    srand(2367845);
     WrapperRegDriver *platform = initPlatform();
 
     Run_TestDMAThresholder(platform);
