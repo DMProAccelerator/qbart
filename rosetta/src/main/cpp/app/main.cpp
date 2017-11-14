@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <random>
+#include <time.h>
 
 using namespace std;
 #include "platform.h"
@@ -23,37 +24,42 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
  
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   std::mt19937_64 generator (seed);
-  std::uniform_int_distribution<s64> distribution(-1, 1); 
+  std::uniform_int_distribution<s64> distribution(0, 1); 
+  printf("Hello world\n");
 
 
   // loops for testing lots of matrices
-  for (int rr = 1; rr < 4; ++rr) {
-    for (int cc = 1; cc < 32; ++cc) {
+  for (int rr = 1; rr < 8; ++rr) {
+    for (int cc = 1; cc < 8; ++cc) {
 
     ////////////// GENERATING TEST MATRICES //////////
 
       int word_size = 64;
       
-      int wr = rr;
-      int wc = cc*64;
-      int wd = 2;
+      int wr = 128;
+      int wc = 1024;
+      int wd = cc;
       s64 W[wr*wc];
 
       int ar = wc;
-      int ac = rr;
-      int ad = 2;
+      int ac = 1;
+      int ad = rr;
+
+      printf("\nMatrix dim: W=(%d, %d) A=(%d, %d)\n", wr, wc, ar, ac);
+      printf("\nBit depths: %d, %d\n", wd, ad);
 
       int out_rows = wr;
       int out_cols = ac;
 
-      int lhs_issigned = 1;
-      int rhs_issigned = 1;
+      int lhs_issigned = 0;
+      int rhs_issigned = 0;
+      int num_chn = 1;
       
       /////////// W
       for (int i = 0; i < wr; ++i) {
         for (int j = 0; j < wc; ++j) {
           s64 r = distribution(generator);
-          r = (r == 0 ? -1 : r);
+          //r = (r == 0 ? -1 : r);
           W[i*wc + j] = r;
         }
       }
@@ -80,7 +86,7 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
       for (int i = 0; i < ar; ++i) {
         for (int j = 0; j < ac; ++j) {
           s64 r = distribution(generator);
-          r = (r==0 ? 1 : r);
+          //r = (r==0 ? 1 : r);
           A[i*ac + j] = r;
           AT[j*ar + i] = r; // FPGA takes right-hand side transposed so we transpose A
         }
@@ -103,6 +109,7 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
       }
         
       // Matrix multiplication
+      clock_t b = clock();
       s64 sw_result[wr*ac] = {0};
       for (int i = 0; i < wr; ++i) {
         for (int j = 0; j < ac; ++j) {
@@ -113,6 +120,9 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
           }
         }
       }
+      clock_t e = clock();
+      double software_elapsed = double(e-b) / CLOCKS_PER_SEC;
+      cout << "software elapsed: "<< software_elapsed << endl;
 
 
 #if 0
@@ -138,7 +148,7 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
       for (int i = 0; i < apr * apc * apd; ++i)
         printf("%llu ", ATP[i]);
 #endif
-#if 1
+#if 0
       printf("\nSoftware result:\n");
       for (int i = 0; i < wr; ++i) {
         for (int j = 0; j < ac; ++j) {
@@ -167,7 +177,6 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
       t.set_lhs_addr((AccelDblReg) dram_w);
       t.set_rhs_addr((AccelDblReg) dram_a);
       t.set_res_addr((AccelDblReg) dram_r);
-      t.set_res_byte_count(r_bytes);
 
       t.set_lhs_rows(wpr);
       t.set_lhs_cols(wpc);
@@ -179,8 +188,15 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
       t.set_rhs_bits(apd);
       t.set_rhs_issigned(rhs_issigned);
 
+      t.set_num_chn(num_chn);
+
+      clock_t begin = clock();
       t.set_start(1);
       while (t.get_done()!=1);
+      clock_t end = clock();
+      double hardware_elapsed = double(end-begin) / CLOCKS_PER_SEC;
+      cout << "hardware elapsed: " << hardware_elapsed << endl;
+      cout << "hardware is " << software_elapsed / hardware_elapsed << " times faster." << endl;
 
       // FPGA result is produced transposed also
       s64 *hw_result_trans = new s64[out_rows * out_cols];
@@ -196,7 +212,7 @@ void Run_TestBitserialGEMM(WrapperRegDriver* platform)
           hw_result[i * out_cols + j] = r;
         }
       }
-#if 1
+#if 0
       printf("Hardware result:\n");
       for (int i = 0; i < out_rows; ++i) {
         for (int j = 0; j < out_cols; ++j) {

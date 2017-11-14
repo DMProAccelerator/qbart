@@ -4,9 +4,7 @@ import Chisel._
 import sys.process._
 
 object Settings {
-  val myInstFxn = { () =>
-    new TestBitserialGEMM()
-  }
+  val myInstFxn = {() => new TestBitserialGEMM()}
 }
 
 object ChiselMain {
@@ -26,7 +24,7 @@ object DriverMain {
   }
 
   def fileCopyBulk(fromDir: String, toDir: String, fileNames: Seq[String]) = {
-    for (f <- fileNames)
+    for(f <- fileNames)
       fileCopy(s"$fromDir/$f", s"$toDir/$f")
   }
 
