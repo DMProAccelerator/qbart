@@ -37,6 +37,11 @@ object Prototypes {
                 chiselMainTest(tutArgs, () => Module(new Threshold(2))) {
                     c => new ThresholdWithCyclesTests(c)
                 }
+
+            case "ThresholdWrapper" =>
+                chiselMainTest(tutArgs, () => Module(new ThresholdWrapper())) {
+                    c => new ThresholdWrapperTests(c)
+                }
         }
     }
 }
