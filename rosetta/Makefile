@@ -1,6 +1,6 @@
 # Possible to run the windows version of vivado from Windows Subsystem for Linux
 # Vivado must be in windows PATH (in environment variables)
-ifeq ($(wsl), yes)
+ifeq ($(WSL),yes)
 	VIVADO := ./vivado.sh
 else
 	VIVADO := vivado
@@ -13,7 +13,7 @@ VIVADO_MODE := batch # gui
 # which C++ compiler to use
 CC = g++
 # scp/rsync target to copy files to board
-BOARD_URI := xilinx@SOLFRID:~/rosetta
+BOARD_URI := xilinx@bjorg:~/rosetta
 
 # other project settings
 SBT ?= sbt
@@ -53,7 +53,7 @@ hw_driver:
 
 # create a new Vivado project
 hw_vivadoproj: hw_verilog
-ifeq ( $(wsl), yes)
+ifeq ($(WSL),yes)
 	$(VIVADO) -mode $(VIVADO_MODE) -source $(VIVADO_PROJ_SCRIPT:/mnt/c%=c:%) -tclargs $(TOP:/mnt/c%=c:%) $(HW_VERILOG:/mnt/c%=c:%) $(BITFILE_PRJNAME) $(BITFILE_PRJDIR:/mnt/c%=c:%) $(FREQ_MHZ)
 else
 	$(VIVADO) -mode $(VIVADO_MODE) -source $(VIVADO_PROJ_SCRIPT) -tclargs $(TOP) $(HW_VERILOG) $(BITFILE_PRJNAME) $(BITFILE_PRJDIR) $(FREQ_MHZ)
@@ -62,7 +62,7 @@ endif
 
 # launch Vivado in GUI mode with created project
 launch_vivado_gui:
-ifeq ($(wsl), yes)
+ifeq ($(WSL),yes)
 	$(VIVADO) -mode gui $(BITFILE_PRJDIR:/mnt/c%=c:%)/$(BITFILE_PRJNAME).xpr
 else
 	$(VIVADO) -mode gui $(BITFILE_PRJDIR)/$(BITFILE_PRJNAME).xpr
@@ -71,7 +71,7 @@ endif
 
 # run bitfile synthesis for the Vivado project
 bitfile: hw_vivadoproj
-ifeq ($(wsl), yes)
+ifeq ($(WSL),yes)
 	$(VIVADO) -mode $(VIVADO_MODE) -source $(VIVADO_SYNTH_SCRIPT:/mnt/c%=c:%) -tclargs $(BITFILE_PRJDIR:/mnt/c%=c:%)/$(BITFILE_PRJNAME).xpr
 else
 	$(VIVADO) -mode $(VIVADO_MODE) -source $(VIVADO_SYNTH_SCRIPT) -tclargs $(BITFILE_PRJDIR)/$(BITFILE_PRJNAME).xpr
