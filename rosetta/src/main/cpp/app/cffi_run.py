@@ -32,7 +32,6 @@ def Run_BitserialGEMM(platform, W, A):
     # Don't transpose channels, only row/col dimensions
     AT = np.transpose(A, (0, 2, 1))
     rhs.rows, rhs.columns = rhs.columns, rhs.rows
-    print(AT)
 
     #print("Software result")
     #print(W.shape)
@@ -50,8 +49,8 @@ def Run_BitserialGEMM(platform, W, A):
     lib.matrix_to_packed_matrix(platform, Wptr, lhs.rows*lhs.columns*lhs.channels, lhs)
     lib.matrix_to_packed_matrix(platform, ATptr, rhs.rows*rhs.columns*rhs.channels, rhs)
 
-    print("LHS:\nChannels: {lhs.channels}\nRows: {lhs.rows}\nColumns: {lhs.columns}\nBit depth: {lhs.bit_depth}\nIs signed: {lhs.is_signed}".format(lhs=lhs))
-    print("RHS:\nChannels: {rhs.channels}\nRows: {rhs.rows}\nColumns: {rhs.columns}\nBit depth: {rhs.bit_depth}\nIs signed: {rhs.is_signed}".format(rhs=rhs))
+    #print("LHS:\nChannels: {lhs.channels}\nRows: {lhs.rows}\nColumns: {lhs.columns}\nBit depth: {lhs.bit_depth}\nIs signed: {lhs.is_signed}".format(lhs=lhs))
+    #print("RHS:\nChannels: {rhs.channels}\nRows: {rhs.rows}\nColumns: {rhs.columns}\nBit depth: {rhs.bit_depth}\nIs signed: {rhs.is_signed}".format(rhs=rhs))
 
     lib.Run_BitserialGEMM(platform, lhs, rhs, res);
     # Result now stored transposed in res
@@ -95,17 +94,16 @@ def test_BitserialGEMM(platform):
 
 
     def bipolar_test(platform):
-        num_rows_W = 4 #random.randint(1, 1024)
-        num_rows_A = num_cols_W = 64 #random.randint(1, 1024)
-        num_cols_A = 1 #random.randint(1, 1024)
-        num_channels = 1 #random.randint(1, 8)
+        num_rows_W = random.randint(1, 256)
+        num_rows_A = num_cols_W = random.randint(1, 1024)
+        num_cols_A = random.randint(1, 256)
+        num_channels = random.randint(1, 4)
 
         W = np.array(
                 [
                     [
                         [
-                            #random.choice((-1, 1))
-                            random.randint(1, 10)
+                            random.choice((-1, 1))
                             for c in xrange(num_cols_W)]
                         for r in xrange(num_rows_W)]
                     for ch in xrange(num_channels)],
@@ -115,8 +113,7 @@ def test_BitserialGEMM(platform):
                 [
                     [
                         [
-                            #random.choice((-1, 1))
-                            random.randint(1, 10)
+                            random.choice((-1, 1))
                             for c in xrange(num_cols_A)]
                         for r in xrange(num_rows_A)]
                     for ch in xrange(num_channels)],
@@ -125,10 +122,9 @@ def test_BitserialGEMM(platform):
         run_test(platform, W, A)
 
 
-    #for i in range(10):
-        #bipolar_test(platform)
-        #print("Test {} succeeded".format(i))
-    bipolar_test(platform)
+    for i in range(10):
+        bipolar_test(platform)
+        print("Test {} succeeded".format(i))
 
 
     #run_test(platform, W, A)

@@ -81,8 +81,6 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
   m->is_signed = is_signed;
 
 
-  printf("%lu %lu %lu %lu\n", channels, rows, cols, bit_depth);
-
   // convert to packed format
   size_t buf_len = calculate_packed_buf_len(m);
   uint64_t* buffer = new uint64_t[buf_len];
@@ -110,22 +108,12 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
     }
   }
 
-  //print_matrix(buffer, buf_len);
-
   // write buffer to DRAM
   platform->copyBufferHostToAccel(buffer, m->baseAddr, buf_len*sizeof(uint64_t));
 
   // Use columns = number of uints in row
   m->columns = (m->columns-1)/64 + 1;
 
-  puts("print buffer");
-  for (int i = 0; i < channels * bit_depth * rows * m->columns; i++) {
-    printf("%llu ", buffer[i]);
-  }
-  puts("\n");
-
-
-  //
   delete[] buffer;
 }
 
