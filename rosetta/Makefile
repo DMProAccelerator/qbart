@@ -5,7 +5,7 @@ VIVADO_MODE := batch
 # which C++ compiler to use
 CC = g++
 # scp/rsync target to copy files to board
-BOARD_URI := xilinx@solfrid:~/rosetta
+BOARD_URI := xilinx@gunn:~/rosetta
 
 # other project settings
 SBT ?= sbt
@@ -20,7 +20,6 @@ BUILD_DIR_HWDRV := $(BUILD_DIR)/hw/driver
 BUILD_DIR_EMULIB_CPP := $(BUILD_DIR)/hw/cpp_emulib
 DRV_SRC_DIR := $(TOP)/src/main/cpp/regdriver
 APP_SRC_DIR := $(TOP)/src/main/cpp/app
-CFFI_SRC_DIR := $(TOP)/src/main/cffi
 VIVADO_PROJ_SCRIPT := $(TOP)/src/main/script/host/make-vivado-project.tcl
 VIVADO_SYNTH_SCRIPT := $(TOP)/src/main/script/host/synth-vivado-project.tcl
 PYNQ_SCRIPT_DIR := $(TOP)/src/main/script/pynq
@@ -62,7 +61,7 @@ pynq_hw: bitfile
 
 # copy all user sources and driver sources to the deployment folder
 pynq_sw: hw_driver
-	mkdir -p $(BUILD_DIR_PYNQ); cp $(BUILD_DIR_HWDRV)/* $(BUILD_DIR_PYNQ)/; cp -r $(APP_SRC_DIR)/* $(BUILD_DIR_PYNQ)/; cp -r $(CFFI_SRC_DIR)/* $(BUILD_DIR_PYNQ)/
+	mkdir -p $(BUILD_DIR_PYNQ); cp $(BUILD_DIR_HWDRV)/* $(BUILD_DIR_PYNQ)/; cp -r $(APP_SRC_DIR)/* $(BUILD_DIR_PYNQ)/
 
 # copy scripts to the deployment folder
 pynq_script:
@@ -70,6 +69,9 @@ pynq_script:
 
 # get everything ready to copy onto the PYNQ
 pynq: pynq_hw pynq_sw pynq_script
+
+cp_code:
+	cp -rf $(APP_SRC_DIR)/* $(BUILD_DIR_PYNQ)/
 
 # use rsync to synchronize contents of the deployment folder onto the PYNQ
 rsync:
