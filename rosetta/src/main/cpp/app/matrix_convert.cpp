@@ -96,7 +96,7 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
           for (int p = 0; p < 64 && c < cols; c++, p++) {
             uint64_t bit = static_cast<uint64_t>(arr[index(ch, r, c, channels, rows, cols)]) & mask;
             if (bit) {
-              buf |= (1 << p);
+              buf |= (static_cast<uint64_t>(1) << p);
             }
           }
           if (c < cols) { // p == 64
