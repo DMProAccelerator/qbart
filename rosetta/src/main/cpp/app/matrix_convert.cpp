@@ -1,4 +1,5 @@
 #include "matrix_convert.hpp"
+
 #include "platform.h"
 
 #include <algorithm>
@@ -38,8 +39,10 @@ size_t calculate_packed_buf_len(PackedMatrix* m) {
 
 void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMatrix* m) {
   WrapperRegDriver* platform = reinterpret_cast<WrapperRegDriver*>(_platform);
+#if 0
   puts("Packing matrix:");
   print_matrix(arr, len);
+#endif
   // assume baseaddr, channels, rows and columns prefilled
   const uint32_t channels = m->channels,
                  rows = m->rows,
@@ -78,6 +81,7 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
   m->is_signed = is_signed;
 
 
+  printf("%lu %lu %lu %lu\n", channels, rows, cols, bit_depth);
 
   // convert to packed format
   size_t buf_len = calculate_packed_buf_len(m);
@@ -106,19 +110,23 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
     }
   }
 
-  print_matrix(buffer, buf_len);
+  //print_matrix(buffer, buf_len);
 
   // write buffer to DRAM
   platform->copyBufferHostToAccel(buffer, m->baseAddr, buf_len*sizeof(uint64_t));
 
   // Use columns = number of uints in row
-  m->columns = (m->columns)/64 + 1;
+  m->columns = (m->columns-1)/64 + 1;
+
+  puts("print buffer");
+  for (int i = 0; i < channels * bit_depth * rows * m->columns; i++) {
+    printf("%llu ", buffer[i]);
+  }
+  puts("\n");
+
 
   //
   delete[] buffer;
-
-
-
 }
 
 void result_matrix_to_matrix(void* _platform, ResultMatrix* r, int64_t* arr, size_t len) {
@@ -128,44 +136,3 @@ void result_matrix_to_matrix(void* _platform, ResultMatrix* r, int64_t* arr, siz
 
   platform->copyBufferAccelToHost(r->baseAddr, arr, len*sizeof(int64_t));
 }
-
-#if 0
-void packed_matrix_to_matrix(PackedMatrix* m, int64_t* arr, size_t len) {
-  assert(arr != NULL);
-  const uint32_t channels = m->channels,
-                 bit_depth = m->bit_depth,
-                 rows = m->rows,
-                 cols = m->columns;
-  assert(channels > 0);
-  assert(bit_depth > 1);
-  assert(rows > 0);
-  assert(cols > 0);
-
-  size_t buf_len = calculate_packed_buf_len(m);
-  uint64_t* accel_buffer = new uint64_t[buf_len];
-  uint64_t* py_buffer = new uint64_t[channels*rows*cols];
-
-  // read buffer from DRAM
-  //platform->copyBufferAccelToHost(buffer, m->baseAddr, buf_len*sizeof(uint64_t));
-
-  int abuf_index = 0;
-  for (int ch = 0; ch < channels; ch++) {
-    for (int bd = 0; bd < bit_depth; bd++) {
-      for (int r = 0; r < rows; r++) {
-        uint64_t buf = accel_buffer[abuf_index++];
-        uint64_t mask = 1;
-        for (int c = 0; c < cols; c++, mask<<=1) {
-          if (!mask) {
-            buf = accel_buffer[abuf_index++];
-            mask = 1;
-          }
-          py_buffer[index(ch, r, c, channels, rows, cols)] |= (mask & buf);
-        }
-      }
-    }
-  }
-  memcpy(arr, py_buffer, channels*rows*cols*sizeof(uint64_t));
-  free(accel_buffer);
-  free(py_buffer);
-}
-#endif

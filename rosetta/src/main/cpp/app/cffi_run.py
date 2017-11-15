@@ -1,6 +1,7 @@
 from _fullyconnected import lib, ffi
 import numpy as np
 import math
+import random
 
 
 def Run_BitserialGEMM(platform, W, A):
@@ -18,7 +19,7 @@ def Run_BitserialGEMM(platform, W, A):
     rhs.channels, rhs.rows, rhs.columns = A.shape
 
     assert rhs.channels == lhs.channels
-    assert rhs.columns == lhs.rows
+    assert lhs.columns == rhs.rows
 
     res = ffi.cast('ResultMatrix *', lib.malloc(ffi.sizeof('ResultMatrix')))
     res.channels, res.rows, res.columns = lhs.channels, lhs.rows, rhs.columns
@@ -30,12 +31,14 @@ def Run_BitserialGEMM(platform, W, A):
 
     # Don't transpose channels, only row/col dimensions
     AT = np.transpose(A, (0, 2, 1))
+    rhs.rows, rhs.columns = rhs.columns, rhs.rows
+    print(AT)
 
-    print("Software result")
-    print(W.shape)
-    print(A.shape)
-    for i in range(W.shape[0]):
-        print(np.dot(W[i], A[i]))
+    #print("Software result")
+    #print(W.shape)
+    #print(A.shape)
+    #for i in range(W.shape[0]):
+        #print(np.dot(W[i], A[i]))
 
     # packing expects flat matrix
     W = W.flatten();
@@ -60,7 +63,6 @@ def Run_BitserialGEMM(platform, W, A):
     Rptr = ffi.cast('int64_t *', ffi.from_buffer(R))
     lib.result_matrix_to_matrix(platform, res, Rptr, result_len)
     R = R.reshape((res.channels, res.columns, res.rows)).transpose((0, 2, 1))
-    print(R)
 
 
     lib.dealloc_dram(platform, lhs.baseAddr);
@@ -71,6 +73,65 @@ def Run_BitserialGEMM(platform, W, A):
     lib.free(rhs)
     lib.free(res)
 
+    return R
+
+
+
+
+def test_BitserialGEMM(platform):
+
+    random.seed('qbart')
+
+    def run_test(platform, W, A):
+        software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
+        fpga_res = Run_BitserialGEMM(platform, W, A)
+        if not (software_res == fpga_res).all():
+            print("Software res ", software_res.shape)
+            print(software_res)
+            print("FPGA res ", fpga_res.shape)
+            print(fpga_res)
+            assert False
+        print("Test succeeded")
+
+
+    def bipolar_test(platform):
+        num_rows_W = 4 #random.randint(1, 1024)
+        num_rows_A = num_cols_W = 64 #random.randint(1, 1024)
+        num_cols_A = 1 #random.randint(1, 1024)
+        num_channels = 1 #random.randint(1, 8)
+
+        W = np.array(
+                [
+                    [
+                        [
+                            #random.choice((-1, 1))
+                            random.randint(1, 10)
+                            for c in xrange(num_cols_W)]
+                        for r in xrange(num_rows_W)]
+                    for ch in xrange(num_channels)],
+                dtype=np.int64)
+
+        A = np.array(
+                [
+                    [
+                        [
+                            #random.choice((-1, 1))
+                            random.randint(1, 10)
+                            for c in xrange(num_cols_A)]
+                        for r in xrange(num_rows_A)]
+                    for ch in xrange(num_channels)],
+                dtype=np.int64)
+
+        run_test(platform, W, A)
+
+
+    #for i in range(10):
+        #bipolar_test(platform)
+        #print("Test {} succeeded".format(i))
+    bipolar_test(platform)
+
+
+    #run_test(platform, W, A)
 
 def main():
     platform = lib.alloc_platform();
@@ -78,56 +139,14 @@ def main():
     #W = np.array([[-2, 1], [1, -1]], dtype=np.int64)
     #A = np.array([[-1, 1], [-1, 1]], dtype=np.int64)
 
-    W = np.array(range(8) , dtype=np.int64).reshape((2, 2, 2))
-    A = np.array(range(8) , dtype=np.int64).reshape((2, 2, 2))
+    #W = np.array(range(8) , dtype=np.int64).reshape((2, 2, 2))
+    #A = np.array(range(8) , dtype=np.int64).reshape((2, 2, 2))
 
 
-    Run_BitserialGEMM(platform, W, A)
+    #Run_BitserialGEMM(platform, W, A)
 
+    test_BitserialGEMM(platform)
 
-
-def test1():
-
-    Aptr = ffi.cast('int64_t *', ffi.from_buffer(A))
-
-    lib.matrix_to_packed_matrix(Aptr, rows*cols*channels, packed_mat)
-
-    B = np.zeros(A.shape, dtype=np.int64)
-    Bptr = ffi.cast('int64_t *', B.ctypes.data)
-    lib.packed_matrix_to_matrix(packed_mat, Bptr, rows*cols*channels)
-
-    print(A)
-    print(B)
-
-
-
-def test2():
-    A = np.arange(1, 31, 1, dtype=np.int64)
-    rows = 3
-    cols = 5
-    channels = 2
-    res = np.zeros(30, dtype=np.int64)
-
-    packed_mat.channels = channels
-    packed_mat.rows = rows
-    packed_mat.columns = cols
-    packed_mat.baseAddr = res.ctypes.data
-
-    Aptr = ffi.cast('int64_t *', A.ctypes.data)
-
-    lib.matrix_to_packed_matrix(Aptr, rows*cols*channels, packed_mat)
-
-    B = np.zeros(30, dtype=np.int64)
-    Bptr = ffi.cast('int64_t *', B.ctypes.data)
-    lib.packed_matrix_to_matrix(packed_mat, Bptr, rows*cols*channels)
-
-    print(A)
-    print(B)
-    assert A == B
-
-
-
-#AT = A.transpose()
 
 if __name__=='__main__':
     main()

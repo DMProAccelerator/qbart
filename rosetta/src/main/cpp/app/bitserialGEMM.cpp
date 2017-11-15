@@ -2,6 +2,10 @@
 #include "platform.h"
 #include "TestBitserialGEMM.hpp"
 
+#include <iostream>
+#include <cassert>
+
+
 void* alloc_platform() {
   return initPlatform();
 }
@@ -16,6 +20,8 @@ void dealloc_dram(void* platform, void* addr) {
 
 void Run_BitserialGEMM(void* _platform, PackedMatrix* W, PackedMatrix* A, ResultMatrix* R) {
   auto platform = reinterpret_cast<WrapperRegDriver*>(_platform);
+
+  assert(W->columns == A->columns);
 
   TestBitserialGEMM t(platform);
 
@@ -36,6 +42,13 @@ void Run_BitserialGEMM(void* _platform, PackedMatrix* W, PackedMatrix* A, Result
   t.set_num_chn(A->channels);
 
   //clock_t begin = clock();
+  //
+  std::cout << W->rows << " " << W->columns << " " << W->bit_depth << " " << W->is_signed << '\n';
+  std::cout << A->rows << " " << A->columns << " " << A->bit_depth << " " << A->is_signed << '\n';
+  printf("LHS: %lu %lu %lu %d\n", W->rows, W->columns, W->bit_depth, W->is_signed);
+  printf("RHS: %lu %lu %lu %d\n", A->rows, A->columns, A->bit_depth, A->is_signed);
+  printf("Channels: %llu\n", A->channels);
+
   t.set_start(1);
   while (t.get_done()!=1);
   //clock_t end = clock();
@@ -43,6 +56,7 @@ void Run_BitserialGEMM(void* _platform, PackedMatrix* W, PackedMatrix* A, Result
   //cout << "hardware elapsed: " << hardware_elapsed << endl;
 
   t.set_start(0);
+#if 1
   size_t len = A->channels*W->rows*A->rows;
   int64_t *arr = new int64_t[len];
   platform->copyBufferAccelToHost(R->baseAddr, arr, len*sizeof(int64_t));
@@ -51,6 +65,7 @@ void Run_BitserialGEMM(void* _platform, PackedMatrix* W, PackedMatrix* A, Result
     printf("%lld ", arr[i]);
   }
   puts("");
+#endif
 
   // transposed result stored in R
   return;
