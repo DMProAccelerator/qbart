@@ -18,6 +18,9 @@ typedef struct ResultMatrix {
   uint32_t columns;
   bool is_signed;
 } ResultMatrix;
+
 void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMatrix* m);
 
-void packed_matrix_to_matrix(PackedMatrix* m, int64_t* arr, size_t len);
+void result_matrix_to_matrix(void* _platform, ResultMatrix* r, int64_t* arr, size_t len);
+
+//void packed_matrix_to_matrix(PackedMatrix* m, int64_t* arr, size_t len);

@@ -110,7 +110,6 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
 
   // write buffer to DRAM
   platform->copyBufferHostToAccel(buffer, m->baseAddr, buf_len*sizeof(uint64_t));
-  //memcpy((void*)m->baseAddr, buffer, buf_len*sizeof(uint64_t));
 
   // Use columns = number of uints in row
   m->columns = (m->columns)/64 + 1;
@@ -122,6 +121,15 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
 
 }
 
+void result_matrix_to_matrix(void* _platform, ResultMatrix* r, int64_t* arr, size_t len) {
+  auto platform = reinterpret_cast<WrapperRegDriver*>(_platform);
+
+  assert(len == r->columns * r->rows * r->channels);
+
+  platform->copyBufferAccelToHost(r->baseAddr, arr, len*sizeof(int64_t));
+}
+
+#if 0
 void packed_matrix_to_matrix(PackedMatrix* m, int64_t* arr, size_t len) {
   assert(arr != NULL);
   const uint32_t channels = m->channels,
@@ -160,3 +168,4 @@ void packed_matrix_to_matrix(PackedMatrix* m, int64_t* arr, size_t len) {
   free(accel_buffer);
   free(py_buffer);
 }
+#endif

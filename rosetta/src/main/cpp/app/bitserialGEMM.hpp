@@ -8,4 +8,5 @@ void Run_BitserialGEMM(void* platform, PackedMatrix* W, PackedMatrix* A, ResultM
 void* alloc_platform();
 
 void* alloc_dram(void* platform, size_t num_bytes);
+void dealloc_dram(void* platform, void* addr);
 

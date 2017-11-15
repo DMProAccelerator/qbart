@@ -22,13 +22,15 @@ typedef struct ResultMatrix {
 
 void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMatrix* m);
 
-void packed_matrix_to_matrix(PackedMatrix* m, int64_t* arr, size_t len);
+//void packed_matrix_to_matrix(PackedMatrix* m, int64_t* arr, size_t len);
+void result_matrix_to_matrix(void* _platform, ResultMatrix* r, int64_t* arr, size_t len);
 
 void Run_BitserialGEMM(void* platform, PackedMatrix* W, PackedMatrix* A, ResultMatrix* R);
 
 void* alloc_platform(void);
 
 void* alloc_dram(void* platform, size_t num_bytes);
+void dealloc_dram(void* platform, void* addr);
 
 void* malloc(size_t size);
 void free(void* p);
