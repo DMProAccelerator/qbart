@@ -35,16 +35,24 @@ def classification_client(qnn_pickle_string, image_list, server_list):
 	
 	for ip_port in server_list:
 		try:
-			active_sockets.append(socket.create_connection(ip_port, timeout=100))
+			active_sockets.append(socket.create_connection(ip_port, timeout=5))
+			print("Successfully connected to " + str(ip_port[0]))
 		except:
 			# If we can't connect, we cannot use this socket later in the program.
 			print("Could not connect to " + str(ip_port[0]))
 	
+	# The argumentlist is used to pass arguments to sendandreceive with thread pool mapping. A bit hacky, but a bit cleaner than the "proper" approach.
 	argumentlist = []
 	
+	# For every socket we add arguments. We also set the socket timeout to Null, so it doesn't time out.
+	# A future improvement would be to have timeouts, but have the server send isalive messages to client from time to time in case the work set is large.
 	for socketnum in range(len(active_sockets)):
+		active_sockets[socketnum].settimeout(None)
 		argumentlist.append([active_sockets[socketnum], socketnum, len(active_sockets), qnn_pickle_string, image_list])
 	
+	if len(active_sockets) == 0:
+		raise ValueError("There are no active sockets, and therefore no active processing servers. Quitting.")
+	print("Connected servers are now receiving and working on images.")
 	pool = ThreadPool(len(active_sockets))
 	results = pool.map(sendandreceive, argumentlist)
 	return results
@@ -58,9 +66,7 @@ def sendandreceive(argumentarray):
 	
 	# First we send the QNN pickle string.
 	qnn_size = len(qnn)
-	print(qnn_size)
 	qnn_size = bin(qnn_size)[2:].zfill(32)
-	print(qnn_size)
 	safe_send(qnn_size, 32, socket)
 	safe_send(qnn, int(qnn_size,2), socket)
 	
@@ -79,12 +85,9 @@ def sendandreceive(argumentarray):
 	
 	# Send size of image_list_pickle and the actual pickle to the server.
 	filesize = len(image_list_pickled_and_stringed)
-	print(filesize)
 	filesize = bin(filesize)[2:].zfill(32) # encode filesize as 32 bit binary
-	print("Size of image list that is now being sent:", filesize)
 	safe_send(filesize, 32, socket)
 	safe_send(image_list_pickled_and_stringed, int(filesize,2), socket)
-	print("The image list has been sent")
 	
 	# Now we wait until we get our darn classifications back.
 	classifications_pickle_size = int(safe_receive(32,32,socket), 2)
