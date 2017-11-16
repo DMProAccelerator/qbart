@@ -141,7 +141,8 @@ def main():
 
     #Run_BitserialGEMM(platform, W, A)
 
-    test_BitserialGEMM(platform)
+#   test_BitserialGEMM(platform)
+    lib.Run_UART(platform, 0b10001111);
 
 
 if __name__=='__main__':
