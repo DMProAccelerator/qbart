@@ -13,6 +13,8 @@ def Run_BitserialGEMM(platform, W, A):
         A = np.expand_dims(A, axis=0)
     assert W.ndim == 3
     assert A.ndim == 3
+    W = W.astype(np.int64)
+    A = A.astype(np.int64)
 
     lhs = ffi.cast('PackedMatrix *', lib.malloc(ffi.sizeof('PackedMatrix')))
     lhs.channels, lhs.rows, lhs.columns = W.shape
@@ -76,6 +78,16 @@ def Run_BitserialGEMM(platform, W, A):
 
     return R
 
+def run_test(platform, W, A):
+    software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
+    fpga_res = Run_BitserialGEMM(platform, W, A)
+    if not (software_res == fpga_res).all():
+        print("Software res ", software_res.shape)
+        print(software_res)
+        print("FPGA res ", fpga_res.shape)
+        print(fpga_res)
+        assert False
+    print("Test succeeded")
 
 
 
@@ -83,16 +95,6 @@ def test_BitserialGEMM(platform):
 
     random.seed('qbart')
 
-    def run_test(platform, W, A):
-        software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
-        fpga_res = Run_BitserialGEMM(platform, W, A)
-        if not (software_res == fpga_res).all():
-            print("Software res ", software_res.shape)
-            print(software_res)
-            print("FPGA res ", fpga_res.shape)
-            print(fpga_res)
-            assert False
-        print("Test succeeded")
 
 
     def bipolar_test(platform):
@@ -143,7 +145,11 @@ def main():
 
     #Run_BitserialGEMM(platform, W, A)
 
-    test_BitserialGEMM(platform)
+    W = np.array(range(256), dtype=np.int64).reshape(1, -1, 8)
+    A = np.array(range(8), dtype=np.int64).reshape(1, 8, 1)
+
+    run_test(platform, W, A)
+    #test_BitserialGEMM(platform)
 
 
 if __name__=='__main__':
