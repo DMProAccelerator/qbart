@@ -28,6 +28,7 @@ void result_matrix_to_matrix(void* _platform, ResultMatrix* r, int64_t* arr, siz
 void Run_BitserialGEMM(void* platform, PackedMatrix* W, PackedMatrix* A, ResultMatrix* R);
 
 void* alloc_platform(void);
+void dealloc_platform(void* platform);
 
 void* alloc_dram(void* platform, size_t num_bytes);
 void dealloc_dram(void* platform, void* addr);

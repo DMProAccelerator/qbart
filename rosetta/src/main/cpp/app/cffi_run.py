@@ -29,19 +29,17 @@ def Run_BitserialGEMM(platform, W, A):
     res.channels, res.rows, res.columns = lhs.channels, lhs.rows, rhs.columns
 
     # alloc dram
-    lhs.baseAddr = lib.alloc_dram(platform, lhs.rows*lhs.columns*lhs.channels * ffi.sizeof('uint64_t'))
-    rhs.baseAddr = lib.alloc_dram(platform, rhs.rows*rhs.columns*rhs.channels * ffi.sizeof('uint64_t'))
-    res.baseAddr = lib.alloc_dram(platform, res.rows*res.columns*res.channels * ffi.sizeof('uint64_t'))
+    K = 8 # TODO: Allocated memory for lhs should be rows*channels*bit_depth*((columns-1)//64+1)
+    lhs.baseAddr = lib.alloc_dram(platform, K*lhs.rows*lhs.columns*lhs.channels * ffi.sizeof('uint64_t'))
+    rhs.baseAddr = lib.alloc_dram(platform, K*rhs.rows*rhs.columns*rhs.channels * ffi.sizeof('uint64_t'))
+    res.baseAddr = lib.alloc_dram(platform, K*res.rows*res.columns*res.channels * ffi.sizeof('uint64_t'))
+    assert lhs.baseAddr != 0
+    assert rhs.baseAddr != 0
+    assert res.baseAddr != 0
 
     # Don't transpose channels, only row/col dimensions
     AT = np.transpose(A, (0, 2, 1))
     rhs.rows, rhs.columns = rhs.columns, rhs.rows
-
-    #print("Software result")
-    #print(W.shape)
-    #print(A.shape)
-    #for i in range(W.shape[0]):
-        #print(np.dot(W[i], A[i]))
 
     # packing expects flat matrix
     W = W.flatten();
@@ -53,12 +51,8 @@ def Run_BitserialGEMM(platform, W, A):
     lib.matrix_to_packed_matrix(platform, Wptr, lhs.rows*lhs.columns*lhs.channels, lhs)
     lib.matrix_to_packed_matrix(platform, ATptr, rhs.rows*rhs.columns*rhs.channels, rhs)
 
-    #print("LHS:\nChannels: {lhs.channels}\nRows: {lhs.rows}\nColumns: {lhs.columns}\nBit depth: {lhs.bit_depth}\nIs signed: {lhs.is_signed}".format(lhs=lhs))
-    #print("RHS:\nChannels: {rhs.channels}\nRows: {rhs.rows}\nColumns: {rhs.columns}\nBit depth: {rhs.bit_depth}\nIs signed: {rhs.is_signed}".format(rhs=rhs))
-
     lib.Run_BitserialGEMM(platform, lhs, rhs, res);
     # Result now stored transposed in res
-
 
     # Get result
     result_len = res.rows*res.columns*res.channels
@@ -78,6 +72,13 @@ def Run_BitserialGEMM(platform, W, A):
 
     return R
 
+
+################################################################################
+#####
+##### ONLY TEST CODE BELOW
+#####
+################################################################################
+
 def run_test(platform, W, A):
     software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
     fpga_res = Run_BitserialGEMM(platform, W, A)
@@ -93,63 +94,47 @@ def run_test(platform, W, A):
 
 def test_BitserialGEMM(platform):
 
+    # Tweakale parameteres
+    MAX_W_ROWS = 256
+    MAX_W_COLS = 256
+    MAX_A_COLS = 1024
+    MAX_CHANNELS = 4
+
+    MIN_RAND_NUM = -2000
+    MAX_RAND_NUM = 2000
+
+    NUM_NORMAL_RUNS = 10
+    NUM_BIPOLAR_RUNS = 10
+
     random.seed('qbart')
 
+    def test(platform, bipolar=False):
+        num_rows_W = random.randint(1, MAX_W_ROWS)
+        num_rows_A = num_cols_W = random.randint(1, MAX_W_COLS)
+        num_cols_A = random.randint(1, MAX_A_COLS)
+        num_channels = random.randint(1, MAX_CHANNELS)
+
+        bipolar_gen = lambda : random.choice((-1, 1))
+        normal_gen = lambda : random.randint(MIN_RAND_NUM, MAX_RAND_NUM)
+
+        gen = bipolar_gen if bipolar else normal_gen
 
 
-    def bipolar_test(platform):
-        num_rows_W = random.randint(1, 256)
-        num_rows_A = num_cols_W = random.randint(1, 1024)
-        num_cols_A = random.randint(1, 256)
-        num_channels = random.randint(1, 4)
-
-        W = np.array(
-                [
-                    [
-                        [
-                            random.choice((-1, 1))
-                            for c in xrange(num_cols_W)]
-                        for r in xrange(num_rows_W)]
-                    for ch in xrange(num_channels)],
-                dtype=np.int64)
-
-        A = np.array(
-                [
-                    [
-                        [
-                            random.choice((-1, 1))
-                            for c in xrange(num_cols_A)]
-                        for r in xrange(num_rows_A)]
-                    for ch in xrange(num_channels)],
-                dtype=np.int64)
-
+        W = np.array([ gen() for c in range(num_cols_W * num_rows_W * num_channels)]).reshape((num_channels, num_rows_W, num_cols_W))
+        A = np.array([ gen() for c in range(num_cols_A * num_rows_A * num_channels)]).reshape((num_channels, num_rows_A, num_cols_A))
         run_test(platform, W, A)
 
 
-    for i in range(10):
-        bipolar_test(platform)
-        print("Test {} succeeded".format(i))
+    for i in range(NUM_NORMAL_RUNS):
+        test(platform)
+    for i in range(NUM_BIPOLAR_RUNS):
+        test(platform, bipolar=True)
 
-
-    #run_test(platform, W, A)
 
 def main():
-    platform = lib.alloc_platform();
-
-    #W = np.array([[-2, 1], [1, -1]], dtype=np.int64)
-    #A = np.array([[-1, 1], [-1, 1]], dtype=np.int64)
-
-    #W = np.array(range(8) , dtype=np.int64).reshape((2, 2, 2))
-    #A = np.array(range(8) , dtype=np.int64).reshape((2, 2, 2))
-
-
-    #Run_BitserialGEMM(platform, W, A)
-
-    W = np.array(range(256), dtype=np.int64).reshape(1, -1, 8)
-    A = np.array(range(8), dtype=np.int64).reshape(1, 8, 1)
-
-    run_test(platform, W, A)
-    #test_BitserialGEMM(platform)
+    platform = lib.alloc_platform()
+    test_BitserialGEMM(platform)
+    lib.dealloc_platform(platform)
 
 
 if __name__=='__main__':

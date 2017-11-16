@@ -10,6 +10,10 @@ void* alloc_platform() {
   return initPlatform();
 }
 
+void dealloc_platform(void* platform) {
+  deinitPlatform(reinterpret_cast<WrapperRegDriver*>(platform));
+}
+
 void* alloc_dram(void* platform, size_t num_bytes) {
   return reinterpret_cast<WrapperRegDriver*>(platform)->allocAccelBuffer(num_bytes);
 }
