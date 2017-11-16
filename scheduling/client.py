@@ -22,6 +22,9 @@ and one must manually configure ip-addresses and ports beforehand.
 It is also important to check if a certain server is available before we start, so we ping each of them to see which ones are available.
 """
 def classification_client(qnn_pickle_string, image_list, server_list):
+	# HERE we should send a reset msg to the microcontroller, so that it knows that we are on a new round
+	# TODO: Add cffi-call here to Finn's UART sender.
+	
 	# First we check to see if servers are up and running.
 	#for server in server_name_ip_port_tuples:
 	BUFFER_SIZE = 4096
