@@ -3,7 +3,7 @@ package rosetta
 import Chisel._
 
 class ThresholdThreshInput(val n: Int) extends Bundle {
-    val in = Vec( n, UInt(INPUT, width = 8) )
+    val in = Vec( n, SInt(INPUT, width = 16) )
     val en = Vec( n, Bool(INPUT) )
 
     override def cloneType: this.type = new ThresholdThreshInput(64).asInstanceOf[this.type]
@@ -34,8 +34,8 @@ class Threshold(val n: Int) extends Module {
     val io = new Bundle{
         val start = Bool(INPUT)
         val thresh = Decoupled( new ThresholdThreshInput(n) ).flip()
-        val element = Decoupled( UInt(width = 8) ).flip()
-        val out = Decoupled( UInt(width = 8) )
+        val element = Decoupled( SInt(width = 16) ).flip()
+        val out = Decoupled( UInt(width = 16) )
         val cycle = UInt(OUTPUT)
 
         // DEBUG
@@ -45,12 +45,12 @@ class Threshold(val n: Int) extends Module {
     val s_idle :: s_running :: s_finished :: Nil = Enum(UInt(), 3)
     val r_state = Reg( init = UInt(s_idle) )
 
-    val r_element = Reg( UInt(width = 8) )
+    val r_element = Reg( SInt(width = 16) )
     val r_element_ready = Reg(init = Bool(true))
     val r_thresh_ready = Reg(init = Bool(false))
     val r_cycle = Reg( init=UInt(0, width = 8) )
 
-    val r_output = Reg( init = UInt(255) )
+    val r_output = Reg( init = UInt(255, width = 64) )
     val r_output_valid = Reg( init = Bool(false) )
 
     // Create n comparing units

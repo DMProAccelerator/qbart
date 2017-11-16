@@ -166,22 +166,22 @@ class DMAHandler(w: Int) extends Module {
         rState := sReadMatrix
       }
       .otherwise {
-        io.in.ready := Bool(true)
         when (io.in.valid) {
+            io.in.ready := Bool(true)
           rThresholds(rIndex) := io.in.bits
           rIndex := rIndex + UInt(1)
         }
       }
     }
     is (sReadMatrix) {
-      when (rIndex === UInt(io.elemCount)) {
+      when (rIndex === io.elemCount) {
         rState := sFinished
       }
       .otherwise {
           when(thresholder.element.ready) {
-              io.in.ready := Bool(true)
 
             when (io.in.valid) {
+                io.in.ready := Bool(true)
               rIndex := rIndex + UInt(1)
 
               thresholder.element.bits := io.in.bits

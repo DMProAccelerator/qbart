@@ -3,10 +3,10 @@ package Prototypes
 import Chisel._
 
 class ThresholdThreshInput(val n: Int) extends Bundle {
-    val in = Vec( n, UInt(INPUT, width = 8) )
+    val in = Vec( n, SInt(INPUT, width = 16) )
     val en = Vec( n, Bool(INPUT) )
 
-    override def cloneType: this.type = new ThresholdThreshInput(4).asInstanceOf[this.type]
+    override def cloneType: this.type = new ThresholdThreshInput(64).asInstanceOf[this.type]
 }
 
 /** The Use of Threshold:
@@ -34,22 +34,23 @@ class Threshold(val n: Int) extends Module {
     val io = new Bundle{
         val start = Bool(INPUT)
         val thresh = Decoupled( new ThresholdThreshInput(n) ).flip()
-        val element = Decoupled( UInt(width = 8) ).flip()
-        val out = Decoupled( UInt(width = 8) )
+        val element = Decoupled( SInt(width = 16) ).flip()
+        val out = Decoupled( UInt(width = 16) )
         val cycle = UInt(OUTPUT)
 
+        // DEBUG
         val state_out = UInt(OUTPUT)
     }
 
     val s_idle :: s_running :: s_finished :: Nil = Enum(UInt(), 3)
     val r_state = Reg( init = UInt(s_idle) )
 
-    val r_element = Reg( UInt(width = 8) )
+    val r_element = Reg( SInt(width = 16) )
     val r_element_ready = Reg(init = Bool(true))
     val r_thresh_ready = Reg(init = Bool(false))
     val r_cycle = Reg( init=UInt(0, width = 8) )
 
-    val r_output = Reg( init = UInt(255) )
+    val r_output = Reg( init = UInt(255, width = 64) )
     val r_output_valid = Reg( init = Bool(false) )
 
     // Create n comparing units
@@ -74,7 +75,7 @@ class Threshold(val n: Int) extends Module {
     io.out.bits := r_output
     io.out.valid := r_output_valid
 
-    // DEBUG VALUES
+    // DEBUG
     io.state_out := r_state
 
     switch(r_state) {
@@ -125,9 +126,9 @@ class Threshold(val n: Int) extends Module {
 
 
 class ThresholdTests(c: Threshold) extends Tester(c) {
-    val thresholds = List( 50, 100, 150 )
-    val inputs  = List( 180, 28, 40, 52, 89, 128, 175, 228, 255, 140, 80, 20, 180 )
-    val outputs = List(  3,  0,  0,  1,  1,   2,   3,   3,   3,   2,  1,  0,   3 )
+    val thresholds = List( -46, 64, 187 )
+    val inputs  = List( 57, 165, 191, 195, 241, 28, 192, -253, 247, -41, -16, 227, -104, 174, 94, -239, 11, -208, 187, 6 )
+    val outputs = List(  1, 2, 3, 3, 3, 1, 3, 0, 3, 1, 1, 3, 0, 2, 2, 0, 1, 0, 3, 1 )
 
     for ( i <- 0 until inputs.size ) {
 
@@ -175,10 +176,10 @@ class ThresholdTests(c: Threshold) extends Tester(c) {
 
 
 class ThresholdWithCyclesTests(c: Threshold) extends Tester(c){
-    val thresholds = List( 50, 100, 150 )
-    val inputs  =   List( 16, 28, 40, 52, 89, 128, 175, 228, 255, 140, 80, 20, 180 )
-    val num_cycles = List(  1,   1,  1, 1,  1,   2,   2,   2,   2,   2,  1,  1,   2 )
-    val outputs =   List(  0,  0,  0,  1,  1,   2,   3,   3,   3,   2,  1,  0,   3 )
+    val thresholds = List( -46, 64, 187 )
+    val inputs  = List( 57, 165, 191, 195, 241, 28, 192, -253, 247, -41, -16, 227, -104, 174, 94, -239, 11, -208, 187, 6 )
+    val outputs = List(  1, 2, 3, 3, 3, 1, 3, 0, 3, 1, 1, 3, 0, 2, 2, 0, 1, 0, 3, 1 )
+    val num_cycles = List(  1, 2, 2, 2, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1, 1, 1, 2, 1 )
 
     for ( i <- 0 until inputs.size ) {
         expect( c.io.state_out, 0 )

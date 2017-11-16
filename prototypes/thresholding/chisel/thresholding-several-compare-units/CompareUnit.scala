@@ -4,8 +4,8 @@ import Chisel._
 
 class CompareUnit extends Module {
     val io = new Bundle {
-        val data = Bits(INPUT, width = 8)
-        val thresh = Bits(INPUT, width = 8)
+        val data = SInt(INPUT, width = 16)
+        val thresh = SInt(INPUT, width = 16)
         val en = Bool(INPUT)
         val out = UInt(OUTPUT, 1)
     }
@@ -13,18 +13,32 @@ class CompareUnit extends Module {
     io.out := Bool(false)
 
     when( io.en ) {
-        io.out := (UInt(io.data) >= UInt(io.thresh))
+        io.out := io.data >= io.thresh
     }
 }
 
 
 class CompareUnitTests(c: CompareUnit) extends Tester(c) {
-    val inputs = List( 3, 4, 5 )
-    val thresh = 4
-    val outputs = List( 0, 1, 1 )
+    var inputs = List( 3, 4, 5, -2 )
+    var thresh = 4
+    var outputs = List( 0, 1, 1, 0 )
 
     for (en <- 0 to 1) {
-        for (i <- 0 until 3 ) {
+        for (i <- 0 until inputs.size) {
+            poke(c.io.thresh, thresh)
+            poke(c.io.data, inputs(i))
+            poke(c.io.en, en)
+
+            expect(c.io.out, outputs(i) & en)
+        }
+    }
+
+    inputs = List( -5,-8, 3, -1 )
+    thresh = -1
+    outputs = List( 0, 0, 1, 1 )
+
+    for (en <- 0 to 1) {
+        for (i <- 0 until inputs.size) {
             poke(c.io.thresh, thresh)
             poke(c.io.data, inputs(i))
             poke(c.io.en, en)

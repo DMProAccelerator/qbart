@@ -86,6 +86,13 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     // Copy host buffer to DRAM read buffer.
     platform->copyBufferHostToAccel(host_buffer, read_buffer, buffer_size);
 
+    double start, end;
+
+    start = walltime();
+    popcount(matrix, thresholds, expected);
+    end = walltime();
+    printf("CPU: %lf\n", end - start);
+
     t.set_baseAddrRead((AccelDblReg) read_buffer);
     t.set_baseAddrWrite((AccelDblReg) write_buffer);
     t.set_byteCount(buffer_size);
@@ -93,16 +100,10 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     t.set_threshCount(T);
     t.set_start(1);
 
-    double start, end;
-
     start = walltime();
-    popcount(matrix, thresholds, expected);
-    end = walltime();
-
-    printf("CPU: %lf\n", end - start);
-
-    start = walltime();
-    while (t.get_finished() != 1);
+    while (t.get_finished() != 1){
+        printf("State %d\n", t.get_state_out());
+    }
     end = walltime();
 
     printf("FPGA: %lf\n", end - start);
