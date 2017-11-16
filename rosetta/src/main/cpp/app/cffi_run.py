@@ -7,6 +7,8 @@ import random
 def Run_BitserialGEMM(platform, W, A):
     if W.ndim == 2:
         W = np.expand_dims(W, axis=0)
+    if A.ndim == 1:
+        A = A.reshape((1, A.shape[0], 1))
     if A.ndim == 2:
         A = np.expand_dims(A, axis=0)
     assert W.ndim == 3
