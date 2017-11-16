@@ -1,0 +1,12 @@
+#-----------------------------------------------------------
+# Vivado v2016.4 (64-bit)
+# SW Build 1756540 on Mon Jan 23 19:11:19 MST 2017
+# IP Build 1755317 on Mon Jan 23 20:30:07 MST 2017
+# Start of session at: Thu Nov 16 17:36:47 2017
+# Process ID: 8495
+# Current directory: /home/fredaas/Desktop/dev/qbart/rosetta
+# Command line: vivado -mode batch -source /home/fredaas/Desktop/dev/qbart/rosetta/src/main/script/host/synth-vivado-project.tcl -tclargs /home/fredaas/Desktop/dev/qbart/rosetta/build/bitfile_synth/bitfile_synth.xpr
+# Log file: /home/fredaas/Desktop/dev/qbart/rosetta/vivado.log
+# Journal file: /home/fredaas/Desktop/dev/qbart/rosetta/vivado.jou
+#-----------------------------------------------------------
+source /home/fredaas/Desktop/dev/qbart/rosetta/src/main/script/host/synth-vivado-project.tcl

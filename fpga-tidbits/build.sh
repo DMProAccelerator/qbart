@@ -3,7 +3,7 @@
 # Builds and runs C++ emulations of Chisel accelerator units.
 
 # Hardcoded for convenience. Change these to suit your needs.
-accel=TestDMAThresholder
+accel=TestDMAWriter
 platform=Tester
 
 if [[ "$1" == "run" ]]; then

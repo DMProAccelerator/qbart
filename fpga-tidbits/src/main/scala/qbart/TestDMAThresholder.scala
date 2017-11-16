@@ -24,9 +24,9 @@ class TestDMAThresholder(p: PlatformWrapperParams) extends GenericAccelerator(p)
 
   val reader = Module(new StreamReader(new StreamReaderParams(
     streamWidth = 64,
-    fifoElems = 10,
+    fifoElems = 8,
     mem = p.toMemReqParams(),
-    maxBeats = 10,
+    maxBeats = 1,
     chanID = 0,
     disableThrottle = true
   ))).io
@@ -46,6 +46,7 @@ class TestDMAThresholder(p: PlatformWrapperParams) extends GenericAccelerator(p)
   writer.byteCount := io.byteCount
 
   handler.start := io.start
+  handler.byteCount := io.byteCount
   handler.elemCount := io.elemCount
   handler.threshCount := io.threshCount
 
@@ -76,6 +77,7 @@ class DMAHandler(w: Int) extends Module {
     val start = Bool(INPUT)
     val elemCount = UInt(INPUT, width = 32)
     val threshCount = UInt(INPUT, width = 32)
+    val byteCount = UInt(INPUT, width = 32)
     val in = Decoupled(UInt(INPUT, width = w)).flip
     val finished = Bool(OUTPUT)
     val out = Decoupled(UInt(OUTPUT, width = w))
@@ -85,7 +87,7 @@ class DMAHandler(w: Int) extends Module {
 
   val bytesPerElem = w / 8
 
-  val sIdle :: sReadThreshold :: sReadMatrix :: sApplyThreshold :: sFinished :: Nil = Enum(UInt(), 5)
+  val sIdle :: sReadThreshold :: sReadMatrix :: sApplyThreshold :: sReadFlush :: sFinished :: Nil = Enum(UInt(), 6)
 
   val rState = Reg(init = UInt(sIdle))
   val rThresholds = Vec.fill(20) { Reg(init = UInt(0, width = w)) }
@@ -153,6 +155,17 @@ class DMAHandler(w: Int) extends Module {
         }
       }
     }
+    // is (sReadFlush) {
+    //   when (rIndex * UInt(bytesPerElem) === UInt(io.byteCount)) {
+    //     rState := sFinished
+    //   }
+    //   .otherwise {
+    //     io.in.ready := Bool(true)
+    //     when (io.in.valid) {
+    //       rIndex := rIndex + UInt(1)
+    //     }
+    //   }
+    // }
     is (sFinished) {
       io.finished := Bool(true)
       when (!io.start) {

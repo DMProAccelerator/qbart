@@ -11,8 +11,8 @@
 using namespace std;
 
 // M: Matrix elements, T: Threshold elements.
-#define M 1000
-#define T 20
+#define M 17
+#define T 3
 
 double walltime() {
   static struct timeval t;
@@ -62,8 +62,8 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     cout << "Signature: " << hex << t.get_signature() << dec << endl;
 
     // Must be a multiple of 16.
-    int ub = ceil((float) (M + T) / 16) * 16;
-    int buffer_size = ub * sizeof(uint64_t);
+    uint64_t ub = ceil((float) (M + T) / 16) * 16;
+    uint64_t buffer_size = ub * sizeof(uint64_t);
 
     uint64_t *host_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
     uint64_t *receive_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
@@ -104,8 +104,15 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
     printf("FPGA: %lf\n", end - start);
 
+    t.set_start(0);
+
     // Copy DRAM write buffer to host receive buffer.
     platform->copyBufferAccelToHost(write_buffer, receive_buffer, buffer_size);
+
+    printf("Matrix: "); show(matrix, M);
+    printf("Thresholds: "); show(thresholds, T);
+    printf("Expected: "); show(expected, M);
+    printf("Received: "); show(receive_buffer, M);
 
     compare(expected, receive_buffer);
     float cc = t.get_cc();
@@ -113,12 +120,13 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
     free(host_buffer);
     platform->deallocAccelBuffer(read_buffer);
-
-    t.set_start(0);
 }
 
 int main()
 {
+
+    srand(63126);
+
     WrapperRegDriver *platform = initPlatform();
 
     Run_TestDMAThresholder(platform);
