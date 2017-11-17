@@ -1,6 +1,14 @@
 from time import time
 import numpy as np
 import multiprocessing
+import sys
+import os
+
+# This path must obviously be accurate.
+sys.path.append("/home/xilinx/rosetta/rosetta")
+
+import cffi_run
+from _fullyconnected import lib
 
 # qbart_execute is run as a part of a qbart processing server.
 # If we have an FPGA-component for it, we run it on the FPGA.
@@ -19,23 +27,26 @@ class qbart_execute(multiprocessing.Process):
 	
 	def run(self):
 		qbart_classifications = []
-		exists_on_fpga = []
-		
-		for image_index in range(len(self.images)):
-			activations = self.images[image_index][1]
-			for layer in self.qnn:
+	
+		for image_index in range(len(images)):
+			activations = images[image_index][1]
+			for layer in qnn:
 				# Each layer will either do calculations on the A9 or the FPGA.
 				# Everything that the FPGA is unable to do, simply runs on the CPU.
 				# It will initially look very similar to alot in the provided "layers.py", 
 				# but should in the end be entirely different when FPGA implements are finished.
-				if (layer.layerType() not in exists_on_fpga):
-					activations = layer.execute(activations)
+				print(layer.layerType())
+				
+				if (layer.layerType() == "QNNFullyConnectedLayer"):
+					print("Executing FC on FPGA.")
+					print(activations)
+					activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
+				
+				# Just run the CPU version if an FPGA component doesn't exist.
 				else:
-					# Raise error, we are asked to perform a layer operation we do not know.
-					raise ValueError("Invalid layer type.")
+					activations = layer.execute(activations)
 			
 			qbart_classifications.append((self.images[image_index][0], np.argmax(activations)))
-			
 			# We tell our status message sender that we have finished this image by just putting the number there.
 			self.status_msg_queue.put(image_index+1)
 		
