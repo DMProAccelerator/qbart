@@ -27,7 +27,7 @@ def load_images(image_dir, no_images, colsize, rowsize, data_layout, channel_ord
 		filename, file_extension = os.path.splitext(im_path)
 		images.append((image, image_data_transform(im_path, file_extension, colsize, rowsize, data_layout, channel_order)))
 		
-		if len(images) > no_images:
+		if len(images) == no_images:
 			break
 	
 	return images                                                                                                                                                                               
