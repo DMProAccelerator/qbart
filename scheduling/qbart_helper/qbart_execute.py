@@ -2,12 +2,16 @@ import logging
 from time import time
 import numpy as np
 
+import sys
+import os
+
+sys.path.append("/home/xilinx/rosetta/rosetta")
+import cffi_run
+from _fullyconnected import lib
+
+# We assume that we are called with valid layer objects, elsewise things will go wrong.
 def qbart_execute(qnn, images):
-	###############################################################################
-	# The actual QBART processing of every image.
-	###############################################################################
 	qbart_classifications = []
-	exists_on_fpga = [] # We are missing convolution, FC, thresholding and pooling on the FPGA.
 	
 	for image_index in range(len(images)):
 		activations = images[image_index][1]
@@ -16,11 +20,16 @@ def qbart_execute(qnn, images):
 			# Everything that the FPGA is unable to do, simply runs on the CPU.
 			# It will initially look very similar to alot in the provided "layers.py", 
 			# but should in the end be entirely different when FPGA implements are finished.
-			if (layer.layerType() not in exists_on_fpga):
-				activations = layer.execute(activations)
+			print(layer.layerType())
+			
+			if (layer.layerType() == "QNNFullyConnectedLayer"):
+				print("Executing FC on FPGA.")
+				print(activations)
+				activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
+			
+			# Just run the CPU version if an FPGA component doesn't exist.
 			else:
-				# Raise error, we are asked to perform a layer operation we do not know.
-				raise ValueError("Invalid layer type.")
+				activations = layer.execute(activations)
 		
 		qbart_classifications.append((images[image_index][0], np.argmax(activations)))
 	

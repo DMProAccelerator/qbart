@@ -1,11 +1,11 @@
 # target frequency for Vivado FPGA synthesis
-FREQ_MHZ := 150.0
+FREQ_MHZ := 50.0
 # controls whether Vivado will run in command-line or GUI mode
-VIVADO_MODE := batch # gui
+VIVADO_MODE := batch
 # which C++ compiler to use
 CC = g++
 # scp/rsync target to copy files to board
-BOARD_URI := xilinx@pynq:~/rosetta
+BOARD_URI := xilinx@gunn:~/rosetta
 
 # other project settings
 SBT ?= sbt
@@ -70,10 +70,13 @@ pynq_script:
 # get everything ready to copy onto the PYNQ
 pynq: pynq_hw pynq_sw pynq_script
 
+cp_code:
+	cp -rf $(APP_SRC_DIR)/* $(BUILD_DIR_PYNQ)/
+
 # use rsync to synchronize contents of the deployment folder onto the PYNQ
 rsync:
 	rsync -avz $(BUILD_DIR_PYNQ) $(BOARD_URI)
 
 # remove everything that is built
 clean:
-	rm -rf $(BUILD_DIR) && rm -f *.o *.jou *.log
+	rm -rf $(BUILD_DIR)
