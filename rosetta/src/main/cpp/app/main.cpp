@@ -11,7 +11,7 @@
 using namespace std;
 
 // M: Matrix elements, T: Threshold elements.
-#define M 4
+#define M 16
 #define T 3
 
 double walltime() {
@@ -61,9 +61,10 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
     cout << "Signature: " << hex << t.get_signature() << dec << endl;
 
-    // Must be a multiple of 16.
-    int ub = ceil((float) (M + T) / 16) * 16;
+    int ub = ceil((float) (M + T) / 8) * 8;
     int buffer_size = ub * sizeof(uint64_t);
+
+    printf("%d %d\n", M + T , ub);
 
     uint64_t *host_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
     uint64_t *receive_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
@@ -88,7 +89,6 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     t.set_byteCount(buffer_size);
     t.set_elemCount(T + M);
     t.set_threshCount(T);
-    t.set_start(1);
 
     double start, end;
 
@@ -99,7 +99,9 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     printf("CPU: %lf\n", end - start);
 
     start = walltime();
+    t.set_start(1);
     while (t.get_finished() != 1);
+    t.set_start(0);
     end = walltime();
 
     printf("FPGA: %lf\n", end - start);
@@ -113,7 +115,6 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     printf("Expected: \n"); show(expected, M);
     printf("Received: \n"); show(receive_buffer, M);
     printf("\n");
-
     compare(expected, receive_buffer);
     float cc = t.get_cc();
     printf("CC: %.2f CC/Word: %.2f\n", cc, cc / ub);
@@ -121,7 +122,6 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     free(host_buffer);
     platform->deallocAccelBuffer(read_buffer);
 
-    t.set_start(0);
 }
 
 int main()

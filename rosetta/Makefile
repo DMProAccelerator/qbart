@@ -5,7 +5,7 @@ VIVADO_MODE := batch # gui
 # which C++ compiler to use
 CC = g++
 # scp/rsync target to copy files to board
-BOARD_URI := xilinx@aase:~/rosetta
+BOARD_URI := xilinx@bjorg:~/rosetta
 
 # other project settings
 SBT ?= sbt
