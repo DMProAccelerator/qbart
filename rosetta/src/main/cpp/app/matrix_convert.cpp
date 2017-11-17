@@ -83,6 +83,10 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
 
   // convert to packed format
   size_t buf_len = calculate_packed_buf_len(m);
+  if (m->baseAddr == NULL) {
+    m->baseAddr = platform->allocAccelBuffer(buf_len*sizeof(uint64_t));
+  }
+
   uint64_t* buffer = new uint64_t[buf_len];
   size_t buf_index = 0;
   for (uint32_t ch = 0; ch < channels; ch++) {

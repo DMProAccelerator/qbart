@@ -29,9 +29,8 @@ def Run_BitserialGEMM(platform, W, A):
     res.channels, res.rows, res.columns = lhs.channels, lhs.rows, rhs.columns
 
     # alloc dram
-    K = 8 # TODO: Allocated memory for lhs should be rows*channels*bit_depth*((columns-1)//64+1)
-    lhs.baseAddr = lib.alloc_dram(platform, K*lhs.rows*lhs.columns*lhs.channels * ffi.sizeof('uint64_t'))
-    rhs.baseAddr = lib.alloc_dram(platform, K*rhs.rows*rhs.columns*rhs.channels * ffi.sizeof('uint64_t'))
+    lhs.baseAddr = ffi.NULL
+    rhs.baseAddr = ffi.NULL # This is allocated by matrix convert to get correct size
     res.baseAddr = lib.alloc_dram(platform, K*res.rows*res.columns*res.channels * ffi.sizeof('uint64_t'))
     assert lhs.baseAddr != 0
     assert rhs.baseAddr != 0
