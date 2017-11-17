@@ -21,22 +21,22 @@ double walltime() {
   return (t.tv_sec + 1e-6 * t.tv_usec);
 }
 
-void show(uint64_t *a, const int SIZE) {
+void show(int64_t *a, const int SIZE) {
     for (int i = 0; i < SIZE; i++) {
         printf("%" PRIu64 " ", a[i]);
     }
     printf("\n");
 }
 
-void fill(uint64_t *a, const int SIZE) {
+void fill(int64_t *a, const int SIZE) {
     for (int i = 0; i < SIZE; i++) {
         a[i] = rand() % 10;
     }
 }
 
-void popcount(uint64_t *a, uint64_t *b, uint64_t *c) {
+void popcount(int64_t *a, int64_t *b, int64_t *c) {
     for (int x = 0; x < M; x++) {
-        uint64_t count = 0;
+        int64_t count = 0;
         for (int t = 0; t < T; t++) {
             count += (a[x] >= b[t]);
         }
@@ -44,7 +44,7 @@ void popcount(uint64_t *a, uint64_t *b, uint64_t *c) {
     }
 }
 
-void compare(uint64_t *a, uint64_t *b) {
+void compare(int64_t *a, int64_t *b) {
     int count = 0;
     for (int x = 0; x < M; x++) {
         count += a[x] == b[x] ? 0 : 1;
@@ -64,13 +64,13 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
     // Must be a multiple of 16.
     int ub = ceil((float) (M + T) / 16) * 16;
-    int buffer_size = ub * sizeof(uint64_t);
+    int buffer_size = ub * sizeof(int64_t);
 
-    uint64_t *host_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
-    uint64_t *receive_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
-    uint64_t *matrix = (uint64_t *) calloc(M, sizeof(uint64_t));
-    uint64_t *thresholds = (uint64_t *) calloc(T, sizeof(uint64_t));
-    uint64_t *expected = (uint64_t *) calloc(M, sizeof(uint64_t));
+    int64_t *host_buffer = (int64_t *) calloc(ub, sizeof(int64_t));
+    int64_t *receive_buffer = (int64_t *) calloc(ub, sizeof(int64_t));
+    int64_t *matrix = (int64_t *) calloc(M, sizeof(int64_t));
+    int64_t *thresholds = (int64_t *) calloc(T, sizeof(int64_t));
+    int64_t *expected = (int64_t *) calloc(M, sizeof(int64_t));
 
     void *read_buffer = platform->allocAccelBuffer(buffer_size);
     void *write_buffer = platform->allocAccelBuffer(buffer_size);
@@ -80,8 +80,8 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
     fill(matrix, M);
 
-    memcpy(host_buffer, thresholds, T * sizeof(uint64_t));
-    memcpy(host_buffer + T, matrix, M * sizeof(uint64_t));
+    memcpy(host_buffer, thresholds, T * sizeof(int64_t));
+    memcpy(host_buffer + T, matrix, M * sizeof(int64_t));
 
     // Copy host buffer to DRAM read buffer.
     platform->copyBufferHostToAccel(host_buffer, read_buffer, buffer_size);

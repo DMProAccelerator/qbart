@@ -25,6 +25,7 @@ class TestDMAThresholder extends RosettaAccelerator {
     val mem_out_ready = Bool(OUTPUT)
     val mem_in_valid = Bool(OUTPUT)
     val state_out = UInt(OUTPUT)
+    val reader_valid = Bool(OUTPUT)
 
   }
 
@@ -45,11 +46,11 @@ class TestDMAThresholder extends RosettaAccelerator {
   ))).io
   val handler = Module(new DMAHandler(64)).io
 
-  reader.start := io.start
+  reader.start := handler.readerStart
   reader.baseAddr := io.baseAddrRead
   reader.byteCount := io.byteCount
 
-  writer.start := io.start
+  writer.start := handler.writerStart
   writer.baseAddr := io.baseAddrWrite
   writer.byteCount := io.byteCount
 
@@ -65,6 +66,7 @@ class TestDMAThresholder extends RosettaAccelerator {
   io.threshold_state_out := handler.threshold_state_out
   io.mem_out_ready := handler.mem_out_ready
   io.mem_in_valid := handler.mem_in_valid
+  io.reader_valid := reader.out.valid
   io.state_out := handler.state_out
 
 
@@ -97,6 +99,8 @@ class DMAHandler(w: Int) extends Module {
     val in = Decoupled(UInt(INPUT, width = w)).flip
     val finished = Bool(OUTPUT)
     val out = Decoupled(UInt(OUTPUT, width = w))
+    val writerStart = Bool(OUTPUT)
+    val readerStart = Bool(OUTPUT)
 
     // DEBUG
     val threshold_out_valid = Bool(OUTPUT)
@@ -114,7 +118,7 @@ class DMAHandler(w: Int) extends Module {
   val sIdle :: sReadThreshold :: sReadMatrix :: sApplyThreshold :: sFinished :: Nil = Enum(UInt(), 5)
 
   val rState = Reg(init = UInt(sIdle))
-  val rThresholds = Vec.fill(20) { Reg(init = UInt(0, width = w)) }
+  val rThresholds = Vec.fill(32) { Reg(init = UInt(0, width = w)) }
   val rOut = Reg(init = UInt(0, width = w))
   val rIndex = Reg(init = UInt(0, 32))
 
@@ -136,6 +140,8 @@ class DMAHandler(w: Int) extends Module {
   io.in.ready := Bool(false)
   io.out.valid := Bool(false)
   io.out.bits := thresholder.out.bits
+  io.writerStart := Bool(false)
+  io.readerStart := Bool(false)
 
   thresholder.element.bits := UInt(255)
   thresholder.element.valid := Bool(false)
@@ -152,17 +158,17 @@ class DMAHandler(w: Int) extends Module {
       }
   }
 
-
-
   switch (rState) {
     is (sIdle) {
       rIndex := UInt(0)
       when (io.start) {
+        io.writerStart := Bool(true)
+        io.readerStart := Bool(true)
         rState := sReadThreshold
       }
     }
     is (sReadThreshold) {
-      when (rIndex === UInt(io.threshCount)) {
+      when (rIndex === io.threshCount) {
         rState := sReadMatrix
       }
       .otherwise {
