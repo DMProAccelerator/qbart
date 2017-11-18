@@ -172,8 +172,14 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   
   //platform->copyBufferHostToAccel(packed_image, dram_image, packed_image_size_in_bytes);
   //platform->copyBufferHostToAccel(packed_filters, dram_filters, packed_filters_size_in_bytes);
+
+  int64_t temp[10000];
+  platform->copyBufferAccelToHost(dram_filters, temp, num_filter_bitplanes * 8);
+  for(int i= 0; i < num_filter_bitplanes;i++){
+	printf("Bitplane element: %x\n", temp[i]);
+  }
   
-  /*printf("Image address: %x\n", dram_image);
+  printf("Image address: %x\n", dram_image);
   printf("Filter address: %x\n", dram_filters);
   printf("Output address: %x\n", dram_result);
   printf("Temporary address: %x\n", temp_buffer);
@@ -187,7 +193,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   printf("Window size: %d\n", window_size);
   printf("Num output channels: %d\n", num_output_channels);
   printf("Num filter bitplanes: %d\n", num_filter_bitplanes);
-  */
+  
   t.set_imageAddr((AccelDblReg)dram_image);
   t.set_filterAddr((AccelDblReg)dram_filters);
   t.set_outputAddr((AccelDblReg)dram_result);

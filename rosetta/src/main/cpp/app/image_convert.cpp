@@ -86,6 +86,7 @@ void filters_to_packed_filters(void* _platform, int8_t* arr, PackedConvolutionFi
   int packed_filters_bitplane_size_in_bytes = packed_filters_row_size_in_bytes * output_channels;
   int packed_filters_size_in_bytes = packed_filters_bitplane_size_in_bytes * bit_depth;
   uint8_t* packed_filters = new uint8_t[packed_filters_size_in_bytes];
+  memset(packed_filters, 0, packed_filters_size_in_bytes);
 
   
   for(int i = 0; i < bit_depth; i++){
