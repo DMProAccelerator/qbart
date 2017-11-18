@@ -1,4 +1,4 @@
-from _fullyconnected import lib, ffi
+from _qbart import lib, ffi
 import numpy as np
 import math
 import random

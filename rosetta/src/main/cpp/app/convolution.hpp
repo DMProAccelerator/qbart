@@ -1,5 +1,6 @@
 #include "platform.h"
 #include "matrix_convert.hpp"
+#include "image_convert.hpp"
 #include <cstdlib>
 #include "QBART.hpp"
 
