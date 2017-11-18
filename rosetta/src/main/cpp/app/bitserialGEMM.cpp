@@ -1,6 +1,6 @@
 #include "bitserialGEMM.hpp"
 #include "platform.h"
-#include "TestBitserialGEMM.hpp"
+#include "QBART.hpp"
 
 #include <iostream>
 #include <cassert>
@@ -27,7 +27,7 @@ void Run_BitserialGEMM(void* _platform, PackedMatrix* W, PackedMatrix* A, Result
 
   assert(W->columns == A->columns);
 
-  TestBitserialGEMM t(platform);
+  QBART t(platform);
 
   t.set_lhs_addr(reinterpret_cast<AccelDblReg>(W->baseAddr));
   t.set_rhs_addr(reinterpret_cast<AccelDblReg>(A->baseAddr));
@@ -45,14 +45,14 @@ void Run_BitserialGEMM(void* _platform, PackedMatrix* W, PackedMatrix* A, Result
 
   t.set_num_chn(A->channels);
 
-  //clock_t begin = clock();
+  t.set_fc(1);
   t.set_start(1);
+
   while (t.get_done()!=1);
-  //clock_t end = clock();
-  //double hardware_elapsed = double(end-begin) / CLOCKS_PER_SEC;
-  //cout << "hardware elapsed: " << hardware_elapsed << endl;
 
   t.set_start(0);
+  t.set_fc(0);
+
 #if 0
   size_t len = A->channels*W->rows*A->rows;
   int64_t *arr = new int64_t[len];
