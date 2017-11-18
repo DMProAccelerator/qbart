@@ -5,9 +5,9 @@ import numpy as np
 import sys
 import os
 
-sys.path.append("/home/xilinx/rosetta/rosetta")
-import cffi_run
-from _fullyconnected import lib
+#sys.path.append("/home/xilinx/rosetta/rosetta")
+#import cffi_run
+#from _fullyconnected import lib
 
 # We assume that we are called with valid layer objects, elsewise things will go wrong.
 def qbart_execute(qnn, images):
@@ -22,7 +22,7 @@ def qbart_execute(qnn, images):
 			# but should in the end be entirely different when FPGA implements are finished.
 			print(layer.layerType())
 			
-			if (layer.layerType() == "QNNFullyConnectedLayer"):
+			if (layer.layerType() == "bjarne"):
 				print("Executing FC on FPGA.")
 				print(activations)
 				activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
