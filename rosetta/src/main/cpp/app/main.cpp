@@ -11,7 +11,7 @@
 using namespace std;
 
 // M: Matrix elements, T: Threshold elements.
-#define M 16
+#define M 1000
 #define T 3
 
 double walltime() {
@@ -61,19 +61,27 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
     cout << "Signature: " << hex << t.get_signature() << dec << endl;
 
-    int ub = ceil((float) (M + T) / 8) * 8;
-    int buffer_size = ub * sizeof(uint64_t);
+    int reader_size = ceil((float) (M + T) / 8) * 8;
+    int writer_size = ceil((float) M / 8) * 8;
 
-    printf("%d %d\n", M + T , ub);
+    printf("M: %d T: %d M + T: %d\n", M, T, M + T);
 
-    uint64_t *host_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
-    uint64_t *receive_buffer = (uint64_t *) calloc(ub, sizeof(uint64_t));
+    printf("Reader: %d Writer: %d\n", reader_size, writer_size);
+
+    int reader_byte_count = reader_size * sizeof(uint64_t);
+    int writer_byte_count = writer_size * sizeof(uint64_t);
+
+    uint64_t *host_buffer = (uint64_t *) calloc(reader_size,
+        sizeof(uint64_t));
+    uint64_t *receive_buffer = (uint64_t *) calloc(writer_size,
+        sizeof(uint64_t));
+
     uint64_t *matrix = (uint64_t *) calloc(M, sizeof(uint64_t));
     uint64_t *thresholds = (uint64_t *) calloc(T, sizeof(uint64_t));
     uint64_t *expected = (uint64_t *) calloc(M, sizeof(uint64_t));
 
-    void *read_buffer = platform->allocAccelBuffer(buffer_size);
-    void *write_buffer = platform->allocAccelBuffer(buffer_size);
+    void *read_buffer = platform->allocAccelBuffer(reader_byte_count);
+    void *write_buffer = platform->allocAccelBuffer(writer_byte_count);
 
     fill(thresholds, T);
     fill(matrix, M);
@@ -82,11 +90,13 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     memcpy(host_buffer + T, matrix, M * sizeof(uint64_t));
 
     // Copy host buffer to DRAM read buffer.
-    platform->copyBufferHostToAccel(host_buffer, read_buffer, buffer_size);
+    platform->copyBufferHostToAccel(host_buffer, read_buffer,
+        reader_byte_count);
 
     t.set_baseAddrRead((AccelDblReg) read_buffer);
     t.set_baseAddrWrite((AccelDblReg) write_buffer);
-    t.set_byteCount(buffer_size);
+    t.set_byteCountReader(reader_byte_count);
+    t.set_byteCountWriter(writer_byte_count);
     t.set_elemCount(T + M);
     t.set_threshCount(T);
 
@@ -107,7 +117,8 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     printf("FPGA: %lf\n", end - start);
 
     // Copy DRAM write buffer to host receive buffer.
-    platform->copyBufferAccelToHost(write_buffer, receive_buffer, buffer_size);
+    platform->copyBufferAccelToHost(write_buffer, receive_buffer,
+        writer_byte_count);
 
     printf("\n");
     printf("Matrix: \n"); show(matrix, M);
@@ -115,13 +126,19 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     printf("Expected: \n"); show(expected, M);
     printf("Received: \n"); show(receive_buffer, M);
     printf("\n");
+
     compare(expected, receive_buffer);
     float cc = t.get_cc();
-    printf("CC: %.2f CC/Word: %.2f\n", cc, cc / ub);
+    printf("CC: %.2f CC/Word: %.2f\n", cc, cc / reader_byte_count);
 
+    // Free memory.
     free(host_buffer);
+    free(receive_buffer);
+    free(matrix);
+    free(thresholds);
+    free(expected);
     platform->deallocAccelBuffer(read_buffer);
-
+    platform->deallocAccelBuffer(write_buffer);
 }
 
 int main()

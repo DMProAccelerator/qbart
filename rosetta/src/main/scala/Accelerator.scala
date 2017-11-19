@@ -8,22 +8,25 @@ import fpgatidbits.streams._
 
 class TestDMAThresholder() extends RosettaAccelerator {
   val numMemPorts = 2
+  val w = 64
   val io = new RosettaAcceleratorIF(numMemPorts) {
-    val start         = Bool(INPUT)
-    val baseAddrRead  = UInt(INPUT, width = 64)
-    val baseAddrWrite = UInt(INPUT, width = 64)
-    val byteCount     = UInt(INPUT, width = 32)
-    val elemCount     = UInt(INPUT, width = 32)
-    val threshCount   = UInt(INPUT, width = 32)
-    val sum           = UInt(OUTPUT, width = 32)
-    val cc            = UInt(OUTPUT, width = 32)
-    val finished      = Bool(OUTPUT)
+    val start           = Bool(INPUT)
+    val baseAddrRead    = UInt(INPUT, width = w)
+    val baseAddrWrite   = UInt(INPUT, width = w)
+    val byteCount       = UInt(INPUT, width = 32)
+    val byteCountReader = UInt(INPUT, width = 32)
+    val byteCountWriter = UInt(INPUT, width = 32)
+    val elemCount       = UInt(INPUT, width = 32)
+    val threshCount     = UInt(INPUT, width = 32)
+    val sum             = UInt(OUTPUT, width = 32)
+    val cc              = UInt(OUTPUT, width = 32)
+    val finished        = Bool(OUTPUT)
   }
 
   val rCC = Reg(init = UInt(0, 32))
 
   val reader = Module(new StreamReader(new StreamReaderParams(
-    streamWidth = 64,
+    streamWidth = w,
     fifoElems = 8,
     mem = PYNQParams.toMemReqParams(),
     maxBeats = 1,
@@ -31,14 +34,16 @@ class TestDMAThresholder() extends RosettaAccelerator {
     disableThrottle = true
   ))).io
   val writer = Module(new StreamWriter(new StreamWriterParams(
-    streamWidth = 64,
+    streamWidth = w,
     mem = PYNQParams.toMemReqParams(),
     chanID = 0
   ))).io
-  val handler = Module(new DMAHandler(64, PYNQParams)).io
+  val handler = Module(new DMAHandler(w, PYNQParams)).io
 
   handler.start := io.start
   handler.byteCount := io.byteCount
+  handler.byteCountReader := io.byteCountReader
+  handler.byteCountWriter := io.byteCountWriter
   handler.elemCount := io.elemCount
   handler.threshCount := io.threshCount
   handler.baseAddrRead := io.baseAddrRead
@@ -72,15 +77,17 @@ class TestDMAThresholder() extends RosettaAccelerator {
 
 class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
   val io = new Bundle {
-    val start         = Bool(INPUT)
-    val byteCount     = UInt(INPUT, width = 32)
-    val elemCount     = UInt(INPUT, width = 32)
-    val threshCount   = UInt(INPUT, width = 32)
-    val baseAddrRead  = UInt(INPUT, width = 64)
-    val baseAddrWrite = UInt(INPUT, width = 64)
-    val finished      = Bool(OUTPUT)
-    var reader        = new StreamReaderIF(w, p.toMemReqParams).flip()
-    var writer        = new StreamWriterIF(w, p.toMemReqParams).flip()
+    val start           = Bool(INPUT)
+    val byteCount       = UInt(INPUT, width = 32)
+    val byteCountReader = UInt(INPUT, width = 32)
+    val byteCountWriter = UInt(INPUT, width = 32)
+    val elemCount       = UInt(INPUT, width = 32)
+    val threshCount     = UInt(INPUT, width = 32)
+    val baseAddrRead    = UInt(INPUT, width = w)
+    val baseAddrWrite   = UInt(INPUT, width = w)
+    val finished        = Bool(OUTPUT)
+    var reader          = new StreamReaderIF(w, p.toMemReqParams).flip()
+    var writer          = new StreamWriterIF(w, p.toMemReqParams).flip()
   }
 
   val thresholder = Module(new Thresholder(w)).io
@@ -98,9 +105,10 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
   val rBytesLeft = Reg(init = UInt(0, 32))
 
   io.reader.baseAddr := io.baseAddrRead
-  io.reader.byteCount := io.byteCount
+  io.reader.byteCount := io.byteCountReader
   io.writer.baseAddr := io.baseAddrWrite
-  io.writer.byteCount := io.byteCount
+  io.writer.byteCount := io.byteCountWriter
+
   io.reader.out.ready := Bool(false)
   io.finished := Bool(false)
   io.writer.start := Bool(false)
@@ -121,14 +129,14 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
       rIndex := UInt(0)
       when (io.start) {
         rState := sReadThreshold
-        rBytesLeft := io.byteCount
+        rBytesLeft := io.byteCountReader
         io.reader.start := Bool(true)
+        io.writer.start := Bool(true)
       }
     }
     is (sReadThreshold) {
       when (rIndex === UInt(io.threshCount)) {
         rState := sReadMatrix
-        io.writer.start := Bool(true)
       }
       .otherwise {
         io.reader.out.ready := Bool(true)
@@ -143,7 +151,7 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
       when (rIndex === UInt(io.elemCount)) {
         rState := sReaderFlush
       }
-      .otherwise {
+      when (thresholder.matrix.ready) {
         io.reader.out.ready := Bool(true)
         when (io.reader.out.valid) {
           rState := sApplyThreshold
@@ -171,7 +179,7 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
       .otherwise {
         io.reader.out.ready := Bool(true)
         when (io.reader.out.valid) {
-            rBytesLeft := rBytesLeft - UInt(bytesPerElem)
+          rBytesLeft := rBytesLeft - UInt(bytesPerElem)
         }
       }
     }
@@ -191,7 +199,7 @@ class Thresholder(w: Int) extends Module {
     val size      = UInt(INPUT, width = 32)
     val threshold = Vec.fill(255) { UInt(INPUT, width = w) }
     val matrix    = Decoupled(UInt(INPUT, width = w)).flip()
-    val count     = Decoupled(UInt(OUTPUT, width = 32))
+    val count     = Decoupled(UInt(OUTPUT, width = w))
     val finished  = Bool(OUTPUT)
   }
 
@@ -210,6 +218,7 @@ class Thresholder(w: Int) extends Module {
     is (sIdle) {
       rCount := UInt(0)
       rIndex := UInt(0)
+      io.matrix.ready := Bool(true)
       when (io.start) {
         rState := sRunning
       }
@@ -218,19 +227,18 @@ class Thresholder(w: Int) extends Module {
       when (rIndex === io.size) {
         rState := sFinished
       }
-      .elsewhen (io.matrix.valid && io.count.ready) { // REMOVE THIS?
+      .elsewhen (io.matrix.valid) {
         rCount := rCount + (UInt(io.matrix.bits) >= UInt(io.threshold(rIndex)))
         rIndex := rIndex + UInt(1)
       }
     }
     is (sFinished) {
       io.finished := Bool(true)
-      when (!io.start) {
+      when (io.count.ready & !io.start) {
         rState := sIdle
       }
       .otherwise {
         io.count.valid := Bool(true)
-        io.matrix.ready := Bool(true)
       }
     }
   }
