@@ -4,7 +4,7 @@ import math
 import random
 
 
-def Run_BitserialGEMM(platform, W, A):
+def Run_BitserialGEMM(platform, W, A, timed=False):
     if W.ndim == 2:
         W = np.expand_dims(W, axis=0)
     if A.ndim == 1:
@@ -50,7 +50,11 @@ def Run_BitserialGEMM(platform, W, A):
     lib.matrix_to_packed_matrix(platform, Wptr, lhs.rows*lhs.columns*lhs.channels, lhs)
     lib.matrix_to_packed_matrix(platform, ATptr, rhs.rows*rhs.columns*rhs.channels, rhs)
 
-    lib.Run_BitserialGEMM(platform, lhs, rhs, res);
+    if timed:
+      lib.Run_BitserialGEMM_timed(platform, lhs, rhs, res);
+    else:
+      lib.Run_BitserialGEMM(platform, lhs, rhs, res);
+
     # Result now stored transposed in res
 
     # Get result
@@ -78,9 +82,9 @@ def Run_BitserialGEMM(platform, W, A):
 #####
 ################################################################################
 
-def run_test(platform, W, A):
+def run_test(platform, W, A, timed=False):
     software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
-    fpga_res = Run_BitserialGEMM(platform, W, A)
+    fpga_res = Run_BitserialGEMM(platform, W, A, timed=timed)
     if not (software_res == fpga_res).all():
         print("Software res ", software_res.shape)
         print(software_res)
@@ -120,7 +124,7 @@ def test_fc_benchmarks(platform, max_w_rows, max_w_cols, max_a_cols, max_channel
 
         W = np.array([ gen() for c in range(num_cols_W * num_rows_W * num_channels)]).reshape((num_channels, num_rows_W, num_cols_W))
         A = np.array([ gen() for c in range(num_cols_A * num_rows_A * num_channels)]).reshape((num_channels, num_rows_A, num_cols_A))
-        run_test(platform, W, A)
+        run_test(platform, W, A, timed=True)
 
 
     for i in range(NUM_NORMAL_RUNS):
@@ -291,7 +295,7 @@ def test_convolution(platform):
 def main():
     platform = lib.alloc_platform()
     #test_BitserialGEMM(platform)
-    test_fc_benchmarks(platform)
+    test_fc_benchmarks(platform, max_w_rows=256, max_w_cols=1024, max_a_cols=1, max_channels=1, num_normal_runs=10, num_bipolar_runs=10)
     lib.dealloc_platform(platform)
 
 
