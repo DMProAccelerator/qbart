@@ -121,10 +121,11 @@ class QBART() extends RosettaAccelerator {
   fc.lhs_reader.out.bits := UInt(0)
   fc.rhs_reader.out.valid := Bool(false)
   fc.rhs_reader.out.bits := UInt(0)
-  //fc.writer.in.ready := Bool(false)
+
   fc.writer.finished := writer.finished
-  val fc_writer_queue = FPGAQueue(fc.writer.in, 2)
-  fc_writer_queue.ready := Bool(false)
+  fc.writer.in.ready := Bool(false)
+  //val fc_writer_queue = FPGAQueue(fc.writer.in, 2)
+  //fc_writer_queue.ready := Bool(false)
 
   fc.lhs_addr := io.lhs_addr
   fc.rhs_addr := io.rhs_addr
@@ -166,9 +167,11 @@ class QBART() extends RosettaAccelerator {
   conv.reader1IF.finished :=  Bool(false)
 
   conv.writerIF.finished := Bool(false)
-  //conv.writerIF.in.ready := Bool(false)
-  val conv_writer_queue = FPGAQueue(conv.writerIF.in, 2)
-  conv_writer_queue.ready := Bool(false)
+  conv.writerIF.in.ready := Bool(false)
+
+  //val conv_writer_queue = FPGAQueue(conv.writerIF.in, 2)
+  //conv_writer_queue.ready := Bool(false)
+
   conv.writerIF.active := Bool(false)
 
   io.finishedSlidingWindow := conv.finishedWithSlidingWindow
@@ -198,7 +201,8 @@ class QBART() extends RosettaAccelerator {
         fc.lhs_reader.out.bits := reader0queue.bits
         fc.rhs_reader.out.valid := reader1queue.valid
         fc.rhs_reader.out.bits := reader1queue.bits
-        fc_writer_queue.ready := writer.in.ready
+        //fc_writer_queue.ready := writer.in.ready
+        fc.writer.in.ready := writer.in.ready
 
         reader0.baseAddr := fc.lhs_reader.baseAddr
         reader0.byteCount := fc.lhs_reader.byteCount
@@ -213,8 +217,10 @@ class QBART() extends RosettaAccelerator {
         writer.baseAddr := fc.writer.baseAddr
         writer.byteCount := fc.writer.byteCount
         writer.start := fc.writer.start
-        writer.in.bits := fc_writer_queue.bits
-        writer.in.valid := fc_writer_queue.valid
+        //writer.in.bits := fc_writer_queue.bits
+        //writer.in.valid := fc_writer_queue.valid
+        writer.in.bits := fc.writer.in.bits
+        writer.in.valid := fc.writer.in.valid
 
         fc.start := Bool(true)
       }
@@ -238,8 +244,10 @@ class QBART() extends RosettaAccelerator {
         writer.baseAddr := conv.writerIF.baseAddr
         writer.byteCount := conv.writerIF.byteCount
         writer.start := conv.writerIF.start
-        writer.in.bits := conv_writer_queue.bits
-        writer.in.valid := conv_writer_queue.valid
+        writer.in.bits := conv.writerIF.in.bits
+        writer.in.valid := conv.writerIF.in.valid
+        //writer.in.bits := conv_writer_queue.bits
+        //writer.in.valid := conv_writer_queue.valid
 
         conv.reader0IF.out.valid := reader0queue.valid
         conv.reader0IF.out.bits := reader0queue.bits
@@ -251,7 +259,8 @@ class QBART() extends RosettaAccelerator {
 
 
         conv.writerIF.finished := writer.finished
-        conv_writer_queue.ready := writer.in.ready
+        //conv_writer_queue.ready := writer.in.ready
+        conv.writerIF.in.ready := writer.in.ready
         conv.writerIF.active := writer.active
 
         conv.start := Bool(true)

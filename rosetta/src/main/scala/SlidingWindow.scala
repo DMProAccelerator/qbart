@@ -191,7 +191,7 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
     }
 
     is(s_fill_bram_start){
-      val counter = Reg(init=UInt(0, width=4))
+      val counter = Reg(init=UInt(0, width=8))
       counter := counter + UInt(1)
       when(counter >= UInt(40)){
         counter := UInt(0)
