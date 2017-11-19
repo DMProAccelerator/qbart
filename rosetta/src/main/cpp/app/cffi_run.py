@@ -270,16 +270,29 @@ def test_convolution(platform):
 
     print("\n\nSoftware result: ")
     print(software_res)
-    
+    sw_flat = software_res.flatten()
+    hw_flat = result.flatten()   
+
+    nums_unequal = 0 
+    for i in range(sw_flat.shape[0]):
+	if sw_flat[i] != hw_flat[i]:
+		print("Element " + str(i) + " is different")
+		nums_unequal += 1
     if (software_res == result).all():
     	print("The two were equal!")
     else:
         print("The two were unequal")
+	print("Num unequal: "+ str(nums_unequal))
+	exit(-1)
+
+
 
 def main():
     platform = lib.alloc_platform()
     #test_BitserialGEMM(platform)
-    test_convolution(platform)
+    for i in range(30):
+    	print("Iteration ", i)
+    	test_convolution(platform)
     lib.dealloc_platform(platform)
 
 

@@ -44,6 +44,8 @@ class Convolution(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Module 
     val writerIF = new StreamWriterIF(wordSizeInBits, p.toMemReqParams()).flip
 
     val finished = Bool(OUTPUT)
+
+    val waiting_for_writer = Bool(OUTPUT)
   }
 
   val reader0 = io.reader0IF
@@ -113,6 +115,8 @@ class Convolution(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Module 
   windowSlider.addrImage := io.imageAddr
   windowSlider.addrResult := io.tempAddr
   windowSlider.start := Bool(false)
+
+  io.waiting_for_writer := windowSlider.waiting_for_writer
 
 
   val multiplier = Module(new BitserialGEMM(wordSizeInBits, p)).io

@@ -3,6 +3,23 @@
 #include <assert.h>
 #include <string.h> // memset
 
+
+uint32_t ceilNum(uint32_t num, uint32_t align){
+  return (num + align - 1)/align * align;
+}
+
+void print_lsb(uint64_t i){
+  for(int k = 0; k < 64; k++){
+    printf("%ld", (i>>k)&1);
+  }
+}
+
+void print_lsb(uint8_t i){
+  for(int k = 0; k < 8; k++){
+    printf("%d", (i>>k)&1);
+  }
+}
+
 void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilters* filters, uint32_t strideExponent, ResultMatrix* result) {
   WrapperRegDriver* platform = (WrapperRegDriver*)_platform;
   QBART t(platform);
@@ -97,14 +114,14 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
 	  filter_distribution(generator);
       }
     }
-  }
+  }*/
 
   
   const int packed_filters_channel_size_in_bytes = ceilNum(window_size * window_size, word_size_in_bits) / 8;
   const int packed_filters_row_size_in_bytes = packed_filters_channel_size_in_bytes * num_input_channels;
   const int packed_filters_bitplane_size_in_bytes = packed_filters_row_size_in_bytes * num_output_channels;
   const int packed_filters_size_in_bytes = packed_filters_bitplane_size_in_bytes * num_filter_bitplanes;
-  uint8_t packed_filters[packed_filters_size_in_bytes];
+  /*uint8_t packed_filters[packed_filters_size_in_bytes];
   memset(packed_filters, 0, packed_filters_size_in_bytes);
   for(int i = 0; i < num_filter_bitplanes; i++){
     for(int j = 0; j < num_output_channels; j++){
@@ -172,12 +189,6 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   
   //platform->copyBufferHostToAccel(packed_image, dram_image, packed_image_size_in_bytes);
   //platform->copyBufferHostToAccel(packed_filters, dram_filters, packed_filters_size_in_bytes);
-
-  int64_t temp[10000];
-  platform->copyBufferAccelToHost(dram_filters, temp, num_filter_bitplanes * 8);
-  for(int i= 0; i < num_filter_bitplanes;i++){
-	printf("Bitplane element: %x\n", temp[i]);
-  }
   
   printf("Image address: %x\n", dram_image);
   printf("Filter address: %x\n", dram_filters);
@@ -213,17 +224,20 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   t.set_start(1);
 
   printf("Starting sliding window\n");
-  while(!t.get_finishedWithSlidingWindow());
-  printf("Finished slidingWindow\n");
+  /*while(!t.get_finishedWithSlidingWindow()){
+    if(t.get_sliderWaiting()){
+      printf("Slider waitingrrr\n");
+    }
+  }
+  printf("Finished slidingWindow\n");*/
   while(!t.get_done());
 
   t.set_conv(0);
   t.set_start(0);
   printf("Finished convolution!\n");
 
-  platform->deallocAccelBuffer(temp_buffer);
 
-  int64_t accel_result[expected_result_num_elements];
+  /*int64_t accel_result[expected_result_num_elements];
   platform->copyBufferAccelToHost(dram_result, accel_result, expected_result_size_in_bytes);
 
   int64_t transposed_accel_result[expected_result_num_elements];
@@ -233,7 +247,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
 			      + j] =
 	accel_result[j * num_output_channels + c];
     }
-  }
+  }*/
   
 #if 0
   printf("Image: \n");
@@ -289,8 +303,32 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
 #endif
 
 
+ 
+#if 0
+  uint8_t sliding_result[ws_size_in_bytes];
+  printf("Sliding window:\n");
+  platform->copyBufferAccelToHost(temp_buffer, sliding_result, ws_size_in_bytes);
+  
+  printf("Result from sliding window:\n");
+  for(int i = 0; i < num_input_bitplanes; i++){
+    printf("Bitplane %d:\n", i);
+    for(int j = 0; j < expected_result_width * expected_result_height; j++){
+      for(int k = 0; k < ws_row_size_in_bytes; k++){
+	print_lsb(sliding_result[i * ws_row_size_in_bytes * expected_result_width * expected_result_height +
+				 j * ws_row_size_in_bytes +
+				 k]);
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+#endif
+
 #if 0
   printf("Packed filters (LSB): \n");
+  uint8_t packed_filters[packed_filters_size_in_bytes];
+  platform->copyBufferAccelToHost(dram_filters, packed_filters, packed_filters_size_in_bytes);
+
   for(int i = 0; i < num_filter_bitplanes; i++){
     printf("Bitplane %d:\n", i);
     for(int j = 0; j < num_output_channels; j++){
@@ -311,26 +349,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   }
 #endif
 
-  
-#if 0
-  uint8_t sliding_result[ws_size_in_bytes];
-  platform->copyBufferAccelToHost(temp_buffer, sliding_result, ws_size_in_bytes);
-  
-  printf("Result from sliding window:\n");
-  for(int i = 0; i < num_input_bitplanes; i++){
-    printf("Bitplane %d:\n", i);
-    for(int j = 0; j < expected_result_width * expected_result_height; j++){
-      for(int k = 0; k < ws_row_size_in_bytes; k++){
-	print_lsb(sliding_result[i * ws_row_size_in_bytes * expected_result_width * expected_result_height +
-				 j * ws_row_size_in_bytes +
-				 k]);
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
-#endif
-
+ 
 
 #if 0
   printf("Expected result: \n");
@@ -393,5 +412,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   if(equal){
     printf("The results were equal!\n");
     }*/
+
+  platform->deallocAccelBuffer(temp_buffer);
 }
 
