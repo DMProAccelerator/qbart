@@ -90,19 +90,19 @@ def run_test(platform, W, A):
     print("Test succeeded")
 
 
-def test_fc_benchmarks(platform):
+def test_fc_benchmarks(platform, max_w_rows, max_w_cols, max_a_cols, max_channels, num_normal_runs, num_bipolar_runs):
 
-    # Tweakale parameteres
-    MAX_W_ROWS = 256
-    MAX_W_COLS = 1024
-    MAX_A_COLS = 1
-    MAX_CHANNELS = 3
+    # Tweakale parameters
+    MAX_W_ROWS = max_w_rows
+    MAX_W_COLS = max_w_cols
+    MAX_A_COLS = max_a_cols
+    MAX_CHANNELS = max_channels
 
     MIN_RAND_NUM = 0
     MAX_RAND_NUM = 1
 
-    NUM_NORMAL_RUNS = 10
-    NUM_BIPOLAR_RUNS = 10
+    NUM_NORMAL_RUNS = num_normal_runs
+    NUM_BIPOLAR_RUNS = num_bipolar_runs
 
     random.seed('qbart')
 
@@ -134,7 +134,7 @@ def test_fc_benchmarks(platform):
 
 def test_BitserialGEMM(platform):
 
-    # Tweakale parameteres
+    # Tweakale parameters
     MAX_W_ROWS = 256
     MAX_W_COLS = 1024
     MAX_A_COLS = 32
