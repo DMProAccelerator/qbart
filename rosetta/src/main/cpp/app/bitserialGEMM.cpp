@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <time.h>
 
 
 void* alloc_platform() {
@@ -48,7 +49,17 @@ void Run_BitserialGEMM(void* _platform, PackedMatrix* W, PackedMatrix* A, Result
   t.set_fc(1);
   t.set_start(1);
 
+  std::cout << "W->rows=" << W->rows << " W->cols=" << W->columns
+    << " W->bit_depth=" << W->bit_depth << std::endl;
+  std::cout << "A->rows=" << A->rows << " A->cols=" << A->columns
+    << " A->bit_depth=" << A->bit_depth << std::endl;
+  std::cout << "num_chn=" << A->channels << std::endl;
+
+  clock_t begin = clock();
   while (t.get_done()!=1);
+  clock_t end = clock();
+  double elapsed = double(end-begin) / CLOCKS_PER_SEC;
+  std::cout << "fpga elapsed: " << elapsed << std::endl;
 
   t.set_start(0);
   t.set_fc(0);

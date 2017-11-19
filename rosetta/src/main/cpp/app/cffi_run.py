@@ -90,12 +90,53 @@ def run_test(platform, W, A):
     print("Test succeeded")
 
 
+def test_fc_benchmarks(platform):
+
+    # Tweakale parameteres
+    MAX_W_ROWS = 256
+    MAX_W_COLS = 1024
+    MAX_A_COLS = 1
+    MAX_CHANNELS = 3
+
+    MIN_RAND_NUM = 0
+    MAX_RAND_NUM = 1
+
+    NUM_NORMAL_RUNS = 10
+    NUM_BIPOLAR_RUNS = 10
+
+    random.seed('qbart')
+
+    def test(platform, bipolar=False):
+        num_rows_W = MAX_W_ROWS
+        num_rows_A = num_cols_W = MAX_W_COLS
+        num_cols_A = MAX_A_COLS
+        num_channels = MAX_CHANNELS
+
+        bipolar_gen = lambda : random.choice((-1, 1))
+        normal_gen = lambda : random.randint(MIN_RAND_NUM, MAX_RAND_NUM)
+
+        gen = bipolar_gen if bipolar else normal_gen
+
+
+        W = np.array([ gen() for c in range(num_cols_W * num_rows_W * num_channels)]).reshape((num_channels, num_rows_W, num_cols_W))
+        A = np.array([ gen() for c in range(num_cols_A * num_rows_A * num_channels)]).reshape((num_channels, num_rows_A, num_cols_A))
+        run_test(platform, W, A)
+
+
+    for i in range(NUM_NORMAL_RUNS):
+        print("normal: running test {} of {}".format(i+1, NUM_NORMAL_RUNS))
+        test(platform)
+    for i in range(NUM_BIPOLAR_RUNS):
+        print("bipolar: running test {} of {}".format(i+1, NUM_BIPOLAR_RUNS))
+        test(platform, bipolar=True)
+
+
 
 def test_BitserialGEMM(platform):
 
     # Tweakale parameteres
     MAX_W_ROWS = 256
-    MAX_W_COLS = 256
+    MAX_W_COLS = 1024
     MAX_A_COLS = 32
     MAX_CHANNELS = 4
 
@@ -249,7 +290,8 @@ def test_convolution(platform):
 
 def main():
     platform = lib.alloc_platform()
-    test_BitserialGEMM(platform)
+    #test_BitserialGEMM(platform)
+    test_fc_benchmarks(platform)
     lib.dealloc_platform(platform)
 
 
