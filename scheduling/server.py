@@ -1,9 +1,8 @@
 #!/usr/bin/python2
 
 import socket
-import threading
 import sys
-from time import sleep
+import multiprocessing
 from QNN import *
 from qbart_helper import *
 import cPickle as pickle
@@ -19,18 +18,10 @@ When the QNN picke and the first image is received, we can start executing the Q
 The server must know when all images have been received, and when all have been received and all have been classified,
 we send the classifications results back to the sender.
 
-TODO: Add message sending for current status (1% of images done, 2%, etc), so that the PCB team can use this to display
-on the PYNQ master screen.
-
-TODO: The server must also receive the config if it is to reshape some images. But in the end
-the images should already have been preprocessed by master PYNQ.
-
-TODO: The safe receive procedure should be abstracted as a separate method (?)
 """
 def classification_server():
 	# Some credit is due to: http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
-	#for server in server_name_ip_port_tuples:
-	TCP_IP = ''
+	TCP_IP = "localhost"
 	TCP_PORT = 64646
 	BUFFER_SIZE = 10000
 	
@@ -65,18 +56,45 @@ def classification_server():
 		print("Getting image list")
 		the_image_list = pickle.loads(safe_receive(image_list_bytes_to_receive, 1024, c))
 		print("I got ", len(the_image_list), "images!")
-		# We have received a QNN and an image, now we classify
-		print("Classifying...")
-		classifications_list_as_ints = qbart_execute(the_qnn, the_image_list) 
+		
+		# We have received a QNN and an image, now we classify. We separate into two concurrently executing threads: The execution, and a status message sender.
+		status_queue = multiprocessing.JoinableQueue()
+		result_queue = multiprocessing.Queue()
+		
+		status_send_process = status_message_sender(len(the_image_list), status_queue, c)
+		qbart_execute_process = qbart_execute(the_qnn, the_image_list, status_queue, result_queue)
+		
+		print("Classifying..")
+		status_send_process.start()
+		qbart_execute_process.start()
+		
+		# Wait until results are finished.
+		print("Attempting to join qbart_execute")
+		qbart_execute_process.join()
+		
+		print("Attempting to terminate qbart_execute")
+		qbart_execute_process.terminate()
+
+		# Wait until all status messages are finished sending.
+		print("Attempting to wait for status_queue to be empty")
+		print(status_queue.empty())
+		status_queue.join()
+		
+		print("Now terminating status send")
+		status_send_process.terminate()
 		
 		# We are done! Now let's return the result to sender.
 		print("Returning classifications list...")
+		classifications_list_as_ints = result_queue.get()
 		classifications_list_as_ints_pickled = pickle.dumps(classifications_list_as_ints)
 		classifications_pickle_size = len(classifications_list_as_ints_pickled)
 		classifications_pickle_size = bin(classifications_pickle_size)[2:].zfill(32)
 		
+		safe_send("FILE", 4, c)
 		safe_send(classifications_pickle_size, 32, c)
 		safe_send(classifications_list_as_ints_pickled, int(classifications_pickle_size,2), c)
+		
+		status_send_process.terminate()
 
 	#	At this point the connection should be done, and we wait for a new round of qnn and images
 	s.close()

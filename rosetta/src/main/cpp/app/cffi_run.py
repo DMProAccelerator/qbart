@@ -30,7 +30,7 @@ def Run_BitserialGEMM(platform, W, A):
     # alloc dram
     lhs.baseAddr = ffi.NULL
     rhs.baseAddr = ffi.NULL # This is allocated by matrix convert to get correct size
-    res.baseAddr = lib.alloc_dram(platform, K*res.rows*res.columns*res.channels * ffi.sizeof('uint64_t'))
+    res.baseAddr = lib.alloc_dram(platform, res.rows*res.columns*res.channels * ffi.sizeof('uint64_t'))
     assert lhs.baseAddr != 0
     assert rhs.baseAddr != 0
     assert res.baseAddr != 0
@@ -95,7 +95,7 @@ def test_BitserialGEMM(platform):
     # Tweakale parameteres
     MAX_W_ROWS = 256
     MAX_W_COLS = 256
-    MAX_A_COLS = 1024
+    MAX_A_COLS = 32
     MAX_CHANNELS = 4
 
     MIN_RAND_NUM = -2000
@@ -124,8 +124,10 @@ def test_BitserialGEMM(platform):
 
 
     for i in range(NUM_NORMAL_RUNS):
+        print("normal: running test {} of {}".format(i+1, NUM_NORMAL_RUNS))
         test(platform)
     for i in range(NUM_BIPOLAR_RUNS):
+        print("bipolar: running test {} of {}".format(i+1, NUM_BIPOLAR_RUNS))
         test(platform, bipolar=True)
 
 
