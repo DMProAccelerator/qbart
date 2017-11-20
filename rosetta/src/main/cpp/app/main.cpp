@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <math.h>
 #include <sys/time.h>
+#include <algorithm>
 
 #include "TestDMAThresholder.hpp"
 #include "platform.h"
@@ -11,7 +12,7 @@
 using namespace std;
 
 // M: Matrix elements, T: Threshold elements.
-#define M 1000
+#define M 10
 #define T 3
 
 double walltime() {
@@ -84,6 +85,7 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
     void *write_buffer = platform->allocAccelBuffer(writer_byte_count);
 
     fill(thresholds, T);
+    sort(thresholds, thresholds + T);
     fill(matrix, M);
 
     memcpy(host_buffer, thresholds, T * sizeof(uint64_t));
@@ -110,7 +112,10 @@ void Run_TestDMAThresholder(WrapperRegDriver *platform) {
 
     start = walltime();
     t.set_start(1);
-    while (t.get_finished() != 1);
+    while (t.get_finished() != 1){
+      printf("state %d\n", t.get_state_out());
+      printf("threshold state %d\n\n", t.get_threshold_state_out());
+    }
     t.set_start(0);
     end = walltime();
 
