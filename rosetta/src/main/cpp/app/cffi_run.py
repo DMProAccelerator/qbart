@@ -139,7 +139,7 @@ def uart_send_message(char):
     """
     lib.Run_UART(lib.alloc_platform(), char)
 
-def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_bitplanes, filters_bitplanes):
+def Run_Convolution(platform, image_data, filters_data, stride_exponent):
     if image_data.ndim == 2:
         image_data = np.expand_dims(image_data, axis=0)
     if filters_data.ndim == 2:
@@ -148,19 +148,10 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_b
     #assert filters_data.ndim == 3
     image = ffi.cast('PackedMatrix *', lib.malloc(ffi.sizeof('PackedMatrix')))
     image.channels, image.rows, image.columns = image_data.shape
-    packed_image_size = image.rows * image_bitplanes * image.channels * ((image.columns + 63)/64) * 8
-    #image.baseAddr = lib.alloc_dram(platform, image.rows * image.columns * image.channels * ffi.sizeof('int8_t'))
-    image.baseAddr = lib.alloc_dram(platform, packed_image_size)
-    image.bit_depth = image_bitplanes
-
+    
     filters = ffi.cast('PackedConvolutionFilters * ', lib.malloc(ffi.sizeof('PackedConvolutionFilters')))
     filters.output_channels, filters.input_channels, window_size_squared = filters_data.shape
     filters.window_size = int(round(math.sqrt(window_size_squared)))
-
-    packed_filters_size = filters_bitplanes * filters.output_channels * filters.input_channels * ((window_size_squared + 63)/64) * 8
-    #filters.base_addr = lib.alloc_dram(platform, filters.output_channels * filters.input_channels * window_size_squared * ffi.sizeof('int8_t'))
-    filters.base_addr = lib.alloc_dram(platform, packed_filters_size)
-    filters.bit_depth = filters_bitplanes
 
     result = ffi.cast('ResultMatrix *', lib.malloc(ffi.sizeof('ResultMatrix')))
     conv_num_windows_in_width = ((image.columns - filters.window_size) >> stride_exponent) + 1
@@ -277,7 +268,7 @@ def test_convolution(platform):
 
     #print("Filters: ")
     #print(filters)
-    result = Run_Convolution(platform, image, filters, stride_exponent, image_num_bitplanes, filter_num_bitplanes)
+    result = Run_Convolution(platform, image, filters, stride_exponent)
 
     software_res = software_convolution(image, filters, 1 << stride_exponent)
     out_width = ((image_width - window_size) >> stride_exponent) + 1
