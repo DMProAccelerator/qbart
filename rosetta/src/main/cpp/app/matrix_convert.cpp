@@ -36,7 +36,6 @@ size_t calculate_packed_buf_len(PackedMatrix* m) {
   return m->channels * m->bit_depth * m->rows * (m->columns/64 + (m->columns%64 > 0));
 }
 
-
 void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMatrix* m) {
   WrapperRegDriver* platform = reinterpret_cast<WrapperRegDriver*>(_platform);
 #if 0
@@ -129,3 +128,4 @@ void result_matrix_to_matrix(void* _platform, ResultMatrix* r, int64_t* arr, siz
 
   platform->copyBufferAccelToHost(r->baseAddr, arr, len*sizeof(int64_t));
 }
+
