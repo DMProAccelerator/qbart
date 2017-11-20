@@ -6,55 +6,6 @@ import fpgatidbits.dma._
 import fpgatidbits.streams._
 
 
-class TestDMAThresholder() extends Module {
-  val w = 64
-  val io = new Bundle {
-    val start           = Bool(INPUT)
-    val baseAddrRead    = UInt(INPUT, width = w)
-    val baseAddrWrite   = UInt(INPUT, width = w)
-    val byteCount       = UInt(INPUT, width = 32)
-    val byteCountReader = UInt(INPUT, width = 32)
-    val byteCountWriter = UInt(INPUT, width = 32)
-    val elemCount       = UInt(INPUT, width = 32)
-    val threshCount     = UInt(INPUT, width = 32)
-    val cc              = UInt(OUTPUT, width = 32)
-    val finished        = Bool(OUTPUT)
-    var reader          = new StreamReaderIF(w, p.toMemReqParams).flip()
-    var writer          = new StreamWriterIF(w, p.toMemReqParams).flip()
-  }
-
-  val rCC = Reg(init = UInt(0, 32))
-
-  val handler = Module(new DMAHandler(w, PYNQParams)).io
-
-  handler.start := io.start
-  handler.byteCount := io.byteCount
-  handler.byteCountReader := io.byteCountReader
-  handler.byteCountWriter := io.byteCountWriter
-  handler.elemCount := io.elemCount
-  handler.threshCount := io.threshCount
-  handler.baseAddrRead := io.baseAddrRead
-  handler.baseAddrWrite := io.baseAddrWrite
-
-  io.signature := makeDefaultSignature()
-  io.finished := handler.finished
-
-  // Read from port 0.
-  io.reader <> handler.reader
-
-  // Write to port 1.
-  io.writer <> handler.writer
-
-  io.cc := rCC
-  when (!io.start) {
-    rCC := UInt(0)
-  }
-  .elsewhen (io.start & !io.finished) {
-    rCC := rCC + UInt(1)
-  }
-}
-
-
 class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
   val io = new Bundle {
     val start           = Bool(INPUT)
@@ -131,7 +82,8 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
       when (rIndex === UInt(io.elemCount)) {
         rState := sReaderFlush
       }
-      .otherwise (thresholder.matrix.ready) {
+      //.otherwise (thresholder.matrix.ready) {
+      .otherwise {
         io.reader.out.ready := Bool(true)
         when (io.reader.out.valid) {
           rState := sApplyThreshold

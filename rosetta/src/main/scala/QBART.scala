@@ -5,7 +5,6 @@ import fpgatidbits.PlatformWrapper._
 import fpgatidbits.dma._
 import fpgatidbits.ocm._
 
-
 class QBART() extends RosettaAccelerator {
   val p = PYNQParams
   val word_size = 64
@@ -57,17 +56,15 @@ class QBART() extends RosettaAccelerator {
 
     val finishedWithSlidingWindow = Bool(OUTPUT)
 
-    /////// TODO: THRESHOLDING IO
-    val start           = Bool(INPUT)
-    val baseAddrRead    = UInt(INPUT, width = w)
-    val baseAddrWrite   = UInt(INPUT, width = w)
+    /////// THRESHOLDING IO
+
+    val baseAddrRead    = UInt(INPUT, width = 64)
+    val baseAddrWrite   = UInt(INPUT, width = 64)
     val byteCount       = UInt(INPUT, width = 32)
     val byteCountReader = UInt(INPUT, width = 32)
     val byteCountWriter = UInt(INPUT, width = 32)
     val elemCount       = UInt(INPUT, width = 32)
     val threshCount     = UInt(INPUT, width = 32)
-    val cc              = UInt(OUTPUT, width = 32)
-    val finished        = Bool(OUTPUT)
   }
 
 
@@ -139,6 +136,7 @@ class QBART() extends RosettaAccelerator {
   fc.rhs_issigned := io.rhs_issigned
   fc.num_chn := io.num_chn
 
+
   val conv = Module(new Convolution(p, 64)).io
 
   conv.start := Bool(false)
@@ -171,7 +169,8 @@ class QBART() extends RosettaAccelerator {
 
   io.finishedWithSlidingWindow := conv.finishedWithSlidingWindow
 
-  val thresh = Module(new TestDMAThresholder()).io
+
+  val thresh = Module(new DMAHandler(word_size, p)).io
 
   thresh.start := Bool(false)
   thresh.baseAddrRead := io.baseAddrRead
@@ -181,8 +180,15 @@ class QBART() extends RosettaAccelerator {
   thresh.byteCountWriter := io.byteCountWriter
   thresh.elemCount := io.elemCount
   thresh.threshCount := io.threshCount
-  thresh.cc := io.cc
-  thresh.finished := io.finished
+
+  thresh.reader.out.valid := Bool(false)
+  thresh.reader.out.bits := UInt(0)
+  thresh.reader.finished := Bool(false)
+
+  thresh.writer.finished := Bool(false)
+  thresh.writer.in.ready := UInt(0)
+  thresh.writer.active := Bool(false)
+
 
   // This state machine rewires readers/writers to running layers
 
@@ -272,17 +278,25 @@ class QBART() extends RosettaAccelerator {
         state := s_done
       }
       .otherwise {
-        reader0.baseAddr := thresh.baseAddrReader
-        reader0.byteCount := thresh.byteCountReader
-        reader0.start := thresh.start.start
-        reader0.out.ready := thresh.reader.ready
-        reader0.out.bits := thresh.reader.bits
+        reader0.baseAddr := thresh.reader.baseAddr
+        reader0.byteCount := thresh.reader.byteCount
+        reader0.start := thresh.reader.start
+        reader0.out.ready := thresh.reader.out.ready
 
-        writer.baseAddr := writer.baseAddrWriter
-        writer.start := tresh.writer.start
-        writer.byteCount := thresh.byteCountWriter
-        writer.valid := thresh.valid
-        writer.bits := thresh.bits
+        writer.baseAddr := thresh.writer.baseAddr
+        writer.byteCount := thresh.writer.byteCount
+        writer.start := thresh.writer.start
+        writer.in.bits := thresh.writer.in.bits
+        writer.in.valid := thresh.writer.in.valid
+
+        thresh.reader.out.valid := reader0.out.valid
+        thresh.reader.out.bits := reader0.out.bits
+
+        thresh.writer.finished := writer.finished
+        thresh.writer.in.ready := writer.in.ready
+        thresh.writer.active := writer.active
+
+	      thresh.start := Bool(true)
       }
     }
 
