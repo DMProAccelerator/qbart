@@ -72,7 +72,9 @@ def Run_BitserialGEMM(platform, W, A):
     return R
 
 
-def Run_Convolution(platform, image_data, filters_data, stride_exponent, padding, num_input_channels, num_output_channels, kernel_side_size):
+def Run_Convolution(platform, image_data, filters_data, stride_exponent, padding, num_input_channels, num_output_channels, kernel_side_size, image_width, image_height):
+    if image_data.ndim == 1:
+        image_data = image_data.reshape(num_input_channels, image_height, image_width)
     if image_data.ndim == 2:
         image_data = np.expand_dims(image_data, axis=0)
     if filters_data.ndim == 2:
@@ -276,7 +278,7 @@ def test_convolution(platform):
 
     #print("Filters: ")
     #print(filters)
-    result = Run_Convolution(platform, image, filters, stride_exponent, 0, num_output_channels, image_num_channels, window_size)
+    result = Run_Convolution(platform, image, filters, stride_exponent, 0, num_output_channels, image_num_channels, window_size, image_width, image_height)
 
     software_res = software_convolution(image, filters, 1 << stride_exponent)
     out_width = ((image_width - window_size) >> stride_exponent) + 1
