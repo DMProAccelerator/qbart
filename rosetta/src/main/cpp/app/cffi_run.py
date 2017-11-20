@@ -150,10 +150,10 @@ def test_BitserialGEMM(platform):
 
 
     for i in range(NUM_NORMAL_RUNS):
-        print("normal: running test {} of {}".format(i+1, NUM_NORMAL_RUNS))
+        print "normal: running test {} of {}".format(i+1, NUM_NORMAL_RUNS),
         test(platform)
     for i in range(NUM_BIPOLAR_RUNS):
-        print("bipolar: running test {} of {}".format(i+1, NUM_BIPOLAR_RUNS))
+        print "bipolar: running test {} of {}".format(i+1, NUM_BIPOLAR_RUNS),
         test(platform, bipolar=True)
 
 
@@ -290,25 +290,25 @@ def test_convolution(platform):
 
     #result = Run_Convolution(platform, image, reversed_filters, stride_exponent, image_num_bitplanes, filter_num_bitplanes)
  
-    print("Hardware result: ")
-    print(result)
+    #print("Hardware result: ")
+    #print(result)
 
-    print("\n\nSoftware result: ")
-    print(software_res)
+    #print("\n\nSoftware result: ")
+    #print(software_res)
     sw_flat = software_res.flatten()
     hw_flat = result.flatten()   
 
     nums_unequal = 0 
     for i in range(sw_flat.shape[0]):
-	if sw_flat[i] != hw_flat[i]:
-		print("Element " + str(i) + " is different")
-		nums_unequal += 1
+      if sw_flat[i] != hw_flat[i]:
+        print("Element " + str(i) + " is different")
+        nums_unequal += 1
     if (software_res == result).all():
-    	print("The two were equal!")
+      print("Convolution test succeed!")
     else:
-        print("The two were unequal")
-	print("Num unequal: "+ str(nums_unequal))
-	exit(-1)
+      print("The two were unequal")
+      print("Num unequal: "+ str(nums_unequal))
+      exit(-1)
 
 
 
@@ -316,9 +316,10 @@ def main():
     platform = lib.alloc_platform()
 
     for i in range(3):
-    	print("Iteration ", i)
-    	test_convolution(platform)
-        test_BitserialGEMM(platform)
+      print("Iteration ", i)
+      test_convolution(platform)
+      test_BitserialGEMM(platform)
+    
     lib.Run_UART(platform, 0b00001111) 
     lib.dealloc_platform(platform)
 
