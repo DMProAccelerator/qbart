@@ -25,6 +25,8 @@ class status_message_sender(multiprocessing.Process):
 			
 			# If there actually is a new status...
 			if new_status is not None:
+				print(new_status)
+				
 				# Pickle the message
 				the_message = (new_status, self.total_image_number)
 				the_message_pickled = pickle.dumps(the_message)

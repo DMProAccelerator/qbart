@@ -157,6 +157,13 @@ def test_BitserialGEMM(platform):
         test(platform, bipolar=True)
 
 
+
+def uart_send_message(char):
+    """
+     example usage: uart_send_message(0b00001111)
+    """
+    lib.Run_UART(lib.alloc_platform(), char)
+
 def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_bitplanes, filters_bitplanes):
     if image_data.ndim == 2:
         image_data = np.expand_dims(image_data, axis=0)
@@ -309,7 +316,6 @@ def test_convolution(platform):
       print("The two were unequal")
       print("Num unequal: "+ str(nums_unequal))
       exit(-1)
-
 
 
 def main():
