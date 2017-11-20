@@ -35,9 +35,8 @@ class qbart_execute(multiprocessing.Process):
 				# Everything that the FPGA is unable to do, simply runs on the CPU.
 				# It will initially look very similar to alot in the provided "layers.py", 
 				# but should in the end be entirely different when FPGA implements are finished.
-				print(layer.layerType())
 				
-				if (layer.layerType() == "Intendedtypingerror_QNNFullyConnectedLayer"):
+				if (layer.layerType() == "QNNFullyConnectedLayer"):
 					print("Executing FC on FPGA.")
 					activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
 					print("Finished running FC on FPGA")
