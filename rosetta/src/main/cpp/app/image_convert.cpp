@@ -44,22 +44,25 @@ void image_to_packed_image(void* _platform, int64_t* image, PackedMatrix* m) {
   for(int i = 0; i < channels; i++){
     for(int j = 0; j < bit_depth; j++){
       for(int k = 0; k < rows; k++){
-  int currByte = 0, currBit = 0;
-  for(int l = 0; l < cols; l++){
-    packed_image[packed_image_size_per_channel * i +
-           packed_image_size_per_bitplane * j +
-           packed_image_row_size_in_bytes * k +
-           currByte]
-      |= ((image[i * rows * cols + k * cols + l] >> j) & 1 ) << currBit;
-    currBit++;
-    if(currBit == 8){
-      currBit = 0;
-      currByte++;
-    }
-  }
+	int currByte = 0, currBit = 0;
+	for(int l = 0; l < cols; l++){
+	  packed_image[packed_image_size_per_channel * i +
+		       packed_image_size_per_bitplane * j +
+		       packed_image_row_size_in_bytes * k +
+		       currByte]
+	    |= ((image[i * rows * cols + k * cols + l] >> j) & 1 ) << currBit;
+	  currBit++;
+	  if(currBit == 8){
+	    currBit = 0;
+	    currByte++;
+	  }
+	}
       }
     }
   }
+
+  
+  m->baseAddr = platform->allocAccelBuffer(packed_image_size_in_bytes);
 
   platform->copyBufferHostToAccel(packed_image, m->baseAddr, packed_image_size_in_bytes);
 
@@ -81,7 +84,6 @@ void filters_to_packed_filters(void* _platform, int64_t* arr, PackedConvolutionF
   m->is_signed = is_signed;
 
   assert(input_channels > 0);
-  assert(bit_depth > 1);
   assert(window_size > 0);
   assert(output_channels > 0);
 
@@ -118,6 +120,8 @@ void filters_to_packed_filters(void* _platform, int64_t* arr, PackedConvolutionF
       }
     }
   }
+
+  m->base_addr = platform->allocAccelBuffer(packed_filters_size_in_bytes);
 
   platform->copyBufferHostToAccel(packed_filters, m->base_addr, packed_filters_size_in_bytes);
 
