@@ -28,10 +28,14 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
     val writerIF = new StreamWriterIF(wordSizeInBits, p.toMemReqParams()).flip
     val finished = Bool(OUTPUT)
 
+    val waiting_for_writer = Bool(OUTPUT)
+
     // Debug:
     val checkAddrBRAM = UInt(INPUT, width=32)
     val debugOutput = UInt(OUTPUT, width=wordSizeInBits)
   }
+
+  io.waiting_for_writer := Bool(false)
 
   val wordBitExponent = log2Up(wordSizeInBits)
   val wordByteExponent = wordBitExponent - 3
@@ -75,7 +79,7 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
   }
 
   val bram = Module(new DualPortBRAM(
-    addrBits = 14, // 14 bits is enough for 10000 columns and a windowSize of 16
+    addrBits = 16, // 14 bits is enough for 10000 columns and a windowSize of 16
     dataBits = wordSizeInBits
   )).io
 
@@ -96,30 +100,30 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
 
   val stride = UInt(1) << io.strideExponent
 
-  val currInputRow = Reg(init=UInt(width=16))
+  val currInputRow = Reg(init=UInt(width=32))
   val currInputCol = Reg(init=UInt(width=32))
-  val currInputBitplane = Reg(init=UInt(width=16))
-  val currInputChannel = Reg(init=UInt(width=16))
+  val currInputBitplane = Reg(init=UInt(width=32))
+  val currInputChannel = Reg(init=UInt(width=32))
 
   val currOutputRow = Reg(init=UInt(0, width=32))
-  val currTempBufferOutputBit = Reg(init=UInt(0))
+  val currTempBufferOutputBit = Reg(init=UInt(0, width=32))
 
-  val bramInputFillingRow = Reg(init=UInt(0, width=16))
-  val bramInputFillingColWord = Reg(init=UInt(0, width=16))
-  val bramOutputFillingRow = Reg(init=UInt(0, width=16))
-  val currStartBRAMRow = Reg(init=UInt(0, width=16))
-  val numBRAMRowsToFill = Reg(init=UInt(0, width=16))
+  val bramInputFillingRow = Reg(init=UInt(0, width=32))
+  val bramInputFillingColWord = Reg(init=UInt(0, width=32))
+  val bramOutputFillingRow = Reg(init=UInt(0, width=32))
+  val currStartBRAMRow = Reg(init=UInt(0, width=32))
+  val numBRAMRowsToFill = Reg(init=UInt(0, width=32))
 
   val wBufferFillReadColumnWord = Reg(init=UInt(0, width=32))
   val wBufferFillReadColumnBitInWord = Reg(init=UInt(0, width=32))
-  val wBufferFillReadRow = Reg(init=UInt(0, width=16))
-  val wBufferFillNumRowsRead = Reg(init=UInt(0, width=16))
+  val wBufferFillReadRow = Reg(init=UInt(0, width=32))
+  val wBufferFillNumRowsRead = Reg(init=UInt(0, width=32))
   val wBufferFillWritePosition = Reg(init=UInt(0, width=8))
   val wBufferFillValidReadBRAM = Reg(init=Bool(false))
   val wBufferFillNumBitsReadOnRow = Reg(init=UInt(0, width=16))
-  val wBufferFillRemainMask = Reg(init=UInt(0, width=16))
-  val wBufferFillLastCycleColBitInWord = Reg(init=UInt(0, width=16))
-  val wBufferFillLastStride = Reg(init=UInt(0, width=16))
+  val wBufferFillRemainMask = Reg(init=UInt(0, width=32))
+  val wBufferFillLastCycleColBitInWord = Reg(init=UInt(0, width=32))
+  val wBufferFillLastStride = Reg(init=UInt(0, width=32))
 
   val temporaryBuffer = Reg(init=UInt(width=128)) // Used in moving from BRAM to writebuffer - 128 bits is enough for window size 11x11
 
@@ -132,12 +136,12 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
   val inputWordsPerRow = ((io.numCols + UInt(wordSizeInBits - 1)) >> wordBitExponent)
   val inputBytesPerRow = (inputWordsPerRow << wordByteExponent)
 
-  val inputBitplaneSizeInBytes = Reg(init=UInt(0, width=16))
+  val inputBitplaneSizeInBytes = Reg(init=UInt(0, width=32))
   val inputChannelSizeInBytes = Reg(init=UInt(0, width=32))
   val inputBitsChannelsOffset = Reg(init=UInt(0, width=32))
 
-  val windowSizeSquared = Reg(init=UInt(0, width=16))
-  val paddedWindowSizeSquaredSizeInBits = Reg(init=UInt(0))
+  val windowSizeSquared = Reg(init=UInt(0, width=32))
+  val paddedWindowSizeSquaredSizeInBits = Reg(init=UInt(0, width=32))
   val paddedWindowSizeSquaredSizeInBytes = paddedWindowSizeSquaredSizeInBits >> 3
   val outputRowSizeInWords = Reg(next=(Reg(next=(windowSizeSquared + UInt(wordSizeInBits - 1) >> wordBitExponent)) *io.numChannels))
   val outputRowSizeInBytes = outputRowSizeInWords << wordByteExponent
@@ -146,7 +150,7 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
 
   val writerWaitForNumFinished = Reg(init=UInt(0, width=32))
 
-  val windowSizeMask = Reg(init = UInt(0, width=16))
+  val windowSizeMask = Reg(init = UInt(0, width=32))
 
   val currOutputBitplaneOffset = Reg(next=outputBitplaneSizeInBytes * currInputBitplane)
   val currOutputRowOffset = Reg(next = outputRowSizeInBytes * currOutputRow)
@@ -161,7 +165,7 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
   outputNumRowsPerBitplane := Reg(next= (Reg(next=(((io.numRows - io.windowSize) >> io.strideExponent) + UInt(1))) * Reg(next=(((io.numCols - io.windowSize) >> io.strideExponent) + UInt(1)))))
   outputBitplaneSizeInBytes := (outputNumRowsPerBitplane * outputRowSizeInBytes)
 
-  windowSizeMask := (UInt(1) << io.windowSize) - UInt(1)
+  windowSizeMask := (UInt(1, width=16) << io.windowSize) - UInt(1)
 
   writer.byteCount := paddedWindowSizeSquaredSizeInBytes
 
@@ -187,9 +191,9 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
     }
 
     is(s_fill_bram_start){
-      val counter = Reg(init=UInt(0, width=4))
+      val counter = Reg(init=UInt(0, width=8))
       counter := counter + UInt(1)
-      when(counter === UInt(2)){
+      when(counter >= UInt(40)){
         counter := UInt(0)
         state := s_fill_bram_setup_reader
       }
@@ -228,13 +232,11 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
         bramOutputFillingRow := bramOutputFillingRow + UInt(1)
       }
 
-      state := s_fill_bram_start
-
       when(bramInputFillingRow === numBRAMRowsToFill - UInt(1)){ // Finished all rows that should be read
         state := s_fill_bram_all_rows_finished
       }.otherwise{
         bramInputFillingRow := bramInputFillingRow + UInt(1)
-
+        state := s_fill_bram_start
       }
     }
 
@@ -285,6 +287,7 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
     }
 
     is(s_fill_window_size_buffer_fill){
+      printf("WbuffWritePos: %d\n", wBufferFillWritePosition)
       val readAndFilteredFromBRAM = UInt((bramReadPort.rsp.readData >> wBufferFillLastCycleColBitInWord) & wBufferFillRemainMask, width=16)
       val newTemp = (temporaryBuffer | (readAndFilteredFromBRAM << wBufferFillWritePosition))
       temporaryBuffer := newTemp
@@ -373,6 +376,7 @@ class SlidingWindow(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Modul
 
     is(s_wait_for_writer_finish){
       writer.start := Bool(true)
+      io.waiting_for_writer := Bool(true)
       when(writer.finished){
         state := s_finished
       }
