@@ -35,6 +35,8 @@ class Convolution(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Module 
     val numOutputChannels = UInt(INPUT, width=16)
 
     val filtersNumBits = UInt(INPUT, width=4)
+    val imageIsSigned = Bool(INPUT)
+    val filtersAreSigned = Bool(INPUT)
 
     val start = Bool(INPUT)
     val finishedWithSlidingWindow = Bool(OUTPUT)
@@ -42,6 +44,7 @@ class Convolution(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Module 
     val reader0IF = new StreamReaderIF(wordSizeInBits, p.toMemReqParams()).flip
     val reader1IF = new StreamReaderIF(wordSizeInBits, p.toMemReqParams()).flip
     val writerIF = new StreamWriterIF(wordSizeInBits, p.toMemReqParams()).flip
+
 
     val finished = Bool(OUTPUT)
 
@@ -128,13 +131,13 @@ class Convolution(p: PlatformWrapperParams, _wordSizeInBits:Int) extends Module 
   multiplier.lhs_rows := io.numOutputChannels 
   multiplier.lhs_cols := slidedWindowRowSizeInWords
   multiplier.lhs_bits := io.filtersNumBits
-  multiplier.lhs_issigned := Bool(true) // Is this ok?
+  multiplier.lhs_issigned := io.filtersAreSigned
 
   // Double check that rows is rows in memory, and not of the transposed of what's in memory
   multiplier.rhs_rows := slidedWindowNumRowsInBitplane
   multiplier.rhs_cols := slidedWindowRowSizeInWords
   multiplier.rhs_bits := io.imageNumBits
-  multiplier.rhs_issigned := Bool(true) // Probably
+  multiplier.rhs_issigned := io.imageIsSigned
 
   multiplier.start := Bool(false)
 

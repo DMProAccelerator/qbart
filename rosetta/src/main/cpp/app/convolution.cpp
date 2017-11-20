@@ -220,6 +220,9 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   t.set_numOutputChannels(num_output_channels);
   t.set_filtersNumBits(num_filter_bitplanes);
 
+  t.set_imageIsSigned(1);
+  t.set_filtersAreSigned(1);
+
   t.set_conv(1);
   t.set_start(1);
 

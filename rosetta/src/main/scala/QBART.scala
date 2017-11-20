@@ -59,6 +59,9 @@ class QBART() extends RosettaAccelerator {
 
     val filtersNumBits = UInt(INPUT, width=4)
 
+    val imageIsSigned = Bool(INPUT)
+    val filtersAreSigned = Bool(INPUT)
+
     val finishedSlidingWindow = Bool(OUTPUT)
     val sliderWaiting = Bool(OUTPUT)
 
@@ -166,6 +169,8 @@ class QBART() extends RosettaAccelerator {
   conv.windowSize := io.windowSize
   conv.numOutputChannels := io.numOutputChannels
   conv.filtersNumBits := io.filtersNumBits
+  conv.imageIsSigned := io.imageIsSigned
+  conv.filtersAreSigned := io.filtersAreSigned
 
   conv.reader0IF.out.valid := Bool(false)
   conv.reader0IF.out.bits :=  UInt(0)
