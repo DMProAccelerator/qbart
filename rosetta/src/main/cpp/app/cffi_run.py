@@ -289,10 +289,12 @@ def test_convolution(platform):
 
 def main():
     platform = lib.alloc_platform()
-    #test_BitserialGEMM(platform)
-    for i in range(30):
+
+    for i in range(3):
     	print("Iteration ", i)
     	test_convolution(platform)
+        test_BitserialGEMM(platform)
+    lib.Run_UART(platform, 0b00001111) 
     lib.dealloc_platform(platform)
 
 
