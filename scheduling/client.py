@@ -8,6 +8,9 @@ from time import sleep
 from qbart_helper import *
 import sys
 import cPickle as pickle
+
+sys.path.append("/home/xilinx/rosetta/rosetta")
+from cffi_run import uart_send_message
 """
 The client has a QNN pickle and a set of images that it wants to send
 to one or several servers who will receive a copy of the QNN, and a subset each of the images.
@@ -30,13 +33,20 @@ def classification_client(qnn_pickle_string, image_list, server_list):
 	# Is passed to server status message handler in order to uniquely identify servers.
 	server_id_table = {}
 	
+	# PCB Message protocol specific. Should be encapsulated in separate method for clarity, but due to time it has to be messy for now.
+	server_progress_levels = [("0000", 0), ("0001", 0.06), ("0010", 0.13), ("0011", 0.20), ("0100", 0.26), ("0101", 0.33), ("0110", 0.4), ("0111", 0.46), ("1000", 0.53), ("1001", 0.60), ("1010", 0.66), ("1011", 0.73), ("1100", 0.8), ("1101", 0.86), ("1110", 0.93), ("1111", 1.00)]
+	
 	# We try to connect to each specified server through a separate socket.
 	for ip_port in server_list:
 		try:
-			active_sockets.append(socket.create_connection(ip_port, timeout=5))
+			active_sockets.append(socket.create_connection(ip_port, timeout=100))
 			
-			# We use the current length of active_sockets as server_id, meaning that we 1-index.
-			server_id_table[ip_port[0]] = len(active_sockets)
+			# We use the previous length of active_sockets as server_id. The second element in the value indicates percentage status
+			# If we are localhost.. QUICKFIX
+			if ip_port[0] == 'localhost' or ip_port[0] == '':
+				server_id_table['127.0.0.1'] = (bin(len(active_sockets)-1)[2:].zfill(3), 0, copy.copy(server_progress_levels))
+			else:
+				server_id_table[ip_port[0]] = (bin(len(active_sockets)-1)[2:].zfill(3), 0, copy.copy(server_progress_levels))
 			
 			print("Successfully connected to " + str(ip_port[0]))
 		except:
@@ -96,22 +106,22 @@ STATUS:
 ServerID: Represented in its binary form, with three bits we can support up to 8 servers. The program shouldn't crash, but you won't get status on any more servers. I.e. not a critical error.
 
 Progress in percent:
-0000	0%
-0001	10%
-0010	20%
-0011	30%
-0100	40%
-0101	50%
-0110	60%
-0111	70%
-1000	80%
-1001	90%
-1010	95%
-1011	96%
-1100	97%
-1101	98%
-1110	99%
-1111	100%
+0000	0/15
+0001	1/15
+0010	2/15
+0011	3/15
+0100	4/15
+0101	5/15
+0110	6/15
+0111	7/15
+1000	8/15
+1001	9/15
+1010	10/15
+1011	11/15
+1100	12/15
+1101	13/15
+1110	14/15
+1111	15/15
 
 When progress is at 100%, the server implicitly is done.
 
@@ -130,22 +140,48 @@ class server_status_msg_handler(multiprocessing.Process):
 		
 	def run(self):
 		print("Running server status message handler")
+		# SEND RESET MESSAGE TO THE PCB.
+		uart_send_message(int("0b10000000",2))
 		
-		while not self.exit.is_set():
-			
+		# THEN SEND MESSAGES TO PCB INFORMING OF PERCENTAGE 0 FOR ALL SERVERS
+		for key in self.server_table.keys():
+			uart_send_message(int((str('0b') + str(0) + str(self.server_table[key][0]) + str(0000)),2))
+		
+		print(self.exit.is_set())
+		while (not self.exit.is_set()):
 			new_message = self.message_queue.get()
-			
 			if new_message is not None:
-				# Construct something for the PCB to display...
-				# TODO: Construct the message
+				# Looking up server ID and server progress
+				table_entry = self.server_table[new_message[0]]
+				server_id = table_entry[0]
+				server_recorded_progress = table_entry[1]
+				server_available_progress_reports = table_entry[2]
 				
-				#################
-				# TODO: INSERT CFFI CALL TO SEND PCB MESSAGE HERE.
-				# What does it expect as input?
-				# We just print the message for the time being...
-				print(new_message)
-				#################
-		
+				
+				# Now we must find out the current progress. Note that it can jump from 0% to for example 50%.
+				# We only want to send one message with the highest progress value.
+				# Element 1 and 2 in new_message holds the currently finished image, and the total number of images.
+				new_progress = float(new_message[1]) / float(new_message[2])
+				
+				# Now get the greatest index where the new_progress was larger than what was in the table.
+				largest_index = -1
+				
+				# Each element in server_available_progress_report is a tuple, (message_bin_code, progress value it represents.)
+				for i in range(len(server_available_progress_reports)):
+					if new_progress >= server_available_progress_reports[i][1]:
+						largest_index = i
+				
+				# If the new progress actually was larger than one than we wish to report, we pass it along to the PCB, and overwrite with a new available progress report.
+				if (largest_index != -1):
+					progress_to_report = server_available_progress_reports[largest_index][0]
+
+					message_to_pcb = "0b" + str(0) + str(server_id) + str(progress_to_report)
+					message_to_pcb = int(message_to_pcb, 2)
+					self.server_table[new_message[0]] = (server_id, server_recorded_progress, server_available_progress_reports[largest_index+1:])
+					
+					# Now we call cffi and send the byte over UART.
+					uart_send_message(message_to_pcb)
+	
 	def terminate(self):
 		print("server_status_msg_handler terminating...")
 		self.exit.set()
@@ -156,7 +192,7 @@ def sendandreceive(argumentarray):
 	commsize = argumentarray[2]
 	qnn = argumentarray[3]
 	image_list = copy.copy(argumentarray[4])
-	message_queue = argumentarray[5]
+	the_message_queue = argumentarray[5]
 	
 	# First we send the QNN pickle string.
 	qnn_size = len(qnn)
@@ -183,9 +219,9 @@ def sendandreceive(argumentarray):
 	safe_send(filesize, 32, socket)
 	safe_send(image_list_pickled_and_stringed, int(filesize,2), socket)
 	
-	# Now we wait until we get our darn classifications back. We can at this time
+	# Now we wait until we get our dear classifications back. We can at this time
 	# be receiving STAT messages, which are status messages from the servers
-	# that should be written to the PCB.
+	# theat should be written to the PCB.
 	
 	message_status =  safe_receive(4, 4, socket)
 	
@@ -194,7 +230,10 @@ def sendandreceive(argumentarray):
 			filesize = safe_receive(32, 32, socket)
 			pickled_message = safe_receive(int(filesize,2), 32, socket)
 			the_message = pickle.loads(pickled_message)
-			message_queue.put(str(socket.getpeername()[0]) + "," + str(the_message[0]) + "," + str(the_message[1]))
+			print("Im now putting shit in the message queue. Specifically this msg:", the_message)
+			the_message_queue.put([socket.getpeername()[0], the_message[0], the_message[1]])
+			print("Now there should be a message on the message queue.")
+			
 		else:
 			raise ValueError("UHOH! We received a message that doesnt follow protocol.")
 		

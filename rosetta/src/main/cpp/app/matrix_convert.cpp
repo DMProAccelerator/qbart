@@ -36,6 +36,34 @@ size_t calculate_packed_buf_len(PackedMatrix* m) {
   return m->channels * m->bit_depth * m->rows * (m->columns/64 + (m->columns%64 > 0));
 }
 
+template<typename T>
+std::pair<int8_t, bool> calc_bit_depth_and_signed(T* arr, size_t len) {
+  int8_t bit_depth = -1;
+
+  // find bit depth
+  auto calc_bit_depth = [](int64_t x) {
+#ifdef __GNUC__
+    if (x < 0)
+      return 64 - __builtin_clzll(~static_cast<uint64_t>(x)) + 1;
+
+    return 64 - __builtin_clzll(static_cast<uint64_t>(x));
+#else
+#  error Non-GCC compiler
+#endif
+  };
+  const auto mnmx = std::minmax_element(arr, arr+len);
+  const bool is_signed = *mnmx.first < 0;
+  if (*mnmx.first == -1 && *mnmx.second == 1 && std::find(arr, arr+len, 0) == arr+len) {
+    bit_depth = 2;
+  } else {
+    const uint32_t mn_bits = calc_bit_depth(*mnmx.first),
+                   mx_bits = calc_bit_depth(*mnmx.second);
+    bit_depth = std::max(mn_bits, mx_bits + is_signed);
+  }
+
+  return std::make_pair(bit_depth, is_signed);
+}
+
 void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMatrix* m) {
   WrapperRegDriver* platform = reinterpret_cast<WrapperRegDriver*>(_platform);
 #if 0
@@ -52,8 +80,8 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
   assert(rows > 0);
   assert(cols > 0);
 
+#if 0
   // find bit depth
-  // TODO: Handle +/-1 case
   auto calc_bit_depth = [](int64_t x) {
 #ifdef __GNUC__
     if (x < 0)
@@ -78,6 +106,12 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
   }
   const uint32_t bit_depth = m->bit_depth;
   m->is_signed = is_signed;
+#endif
+
+  auto bd_and_signed = calc_bit_depth_and_signed(arr, len);
+  m->bit_depth = bd_and_signed.first;
+  m->is_signed = bd_and_signed.second;
+  const uint32_t bit_depth = m->bit_depth;
 
 
   // convert to packed format
