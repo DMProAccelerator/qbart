@@ -21,7 +21,7 @@ we send the classifications results back to the sender.
 """
 def classification_server():
 	# Some credit is due to: http://www.bogotobogo.com/python/python_network_programming_server_client_file_transfer.php
-	TCP_IP = "localhost"
+	TCP_IP = ""
 	TCP_PORT = 64646
 	BUFFER_SIZE = 10000
 	
