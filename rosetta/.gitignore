@@ -1,8 +1,11 @@
+.Xil/
 build/
 ### Project Specific stuff
 test_run_dir/*
 ### XilinxISE template
 # intermediate build files
+*.str
+*.jou
 *.bgn
 *.bit
 *.bld

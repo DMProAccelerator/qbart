@@ -6,10 +6,9 @@ import fpgatidbits.dma._
 import fpgatidbits.streams._
 
 
-class TestDMAThresholder() extends RosettaAccelerator {
-  val numMemPorts = 2
+class TestDMAThresholder() extends Module {
   val w = 64
-  val io = new RosettaAcceleratorIF(numMemPorts) {
+  val io = new Bundle {
     val start           = Bool(INPUT)
     val baseAddrRead    = UInt(INPUT, width = w)
     val baseAddrWrite   = UInt(INPUT, width = w)
@@ -18,26 +17,14 @@ class TestDMAThresholder() extends RosettaAccelerator {
     val byteCountWriter = UInt(INPUT, width = 32)
     val elemCount       = UInt(INPUT, width = 32)
     val threshCount     = UInt(INPUT, width = 32)
-    val sum             = UInt(OUTPUT, width = 32)
     val cc              = UInt(OUTPUT, width = 32)
     val finished        = Bool(OUTPUT)
+    var reader          = new StreamReaderIF(w, p.toMemReqParams).flip()
+    var writer          = new StreamWriterIF(w, p.toMemReqParams).flip()
   }
 
   val rCC = Reg(init = UInt(0, 32))
 
-  val reader = Module(new StreamReader(new StreamReaderParams(
-    streamWidth = w,
-    fifoElems = 8,
-    mem = PYNQParams.toMemReqParams(),
-    maxBeats = 1,
-    chanID = 0,
-    disableThrottle = true
-  ))).io
-  val writer = Module(new StreamWriter(new StreamWriterParams(
-    streamWidth = w,
-    mem = PYNQParams.toMemReqParams(),
-    chanID = 0
-  ))).io
   val handler = Module(new DMAHandler(w, PYNQParams)).io
 
   handler.start := io.start
@@ -53,17 +40,10 @@ class TestDMAThresholder() extends RosettaAccelerator {
   io.finished := handler.finished
 
   // Read from port 0.
-  reader <> handler.reader
-  reader.req <> io.memPort(0).memRdReq
-  reader.rsp <> io.memPort(0).memRdRsp
-  plugMemWritePort(0)
+  io.reader <> handler.reader
 
   // Write to port 1.
-  writer <> handler.writer
-  writer.req <> io.memPort(1).memWrReq
-  writer.rsp <> io.memPort(1).memWrRsp
-  writer.wdat <> io.memPort(1).memWrDat
-  plugMemReadPort(1)
+  io.writer <> handler.writer
 
   io.cc := rCC
   when (!io.start) {
@@ -97,7 +77,7 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
   val sIdle :: sReadThreshold :: sReadMatrix :: sApplyThreshold :: sReaderFlush :: sFinished :: Nil = Enum(UInt(), 6)
 
   val rState = Reg(init = UInt(sIdle))
-  val rThresholds = Vec.fill(20) { Reg(init = UInt(0, width = w)) }
+  val rThresholds = Vec.fill(20) { Reg(init = SInt(0, width = w)) }
   val rIndex = Reg(init = UInt(0, 32))
   val rMatrixElem = Reg(init = UInt(0, width = w))
   val rMatrixValid = Reg(init = Bool(false))
@@ -151,7 +131,7 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
       when (rIndex === UInt(io.elemCount)) {
         rState := sReaderFlush
       }
-      when (thresholder.matrix.ready) {
+      .otherwise (thresholder.matrix.ready) {
         io.reader.out.ready := Bool(true)
         when (io.reader.out.valid) {
           rState := sApplyThreshold
@@ -197,7 +177,7 @@ class Thresholder(w: Int) extends Module {
   val io = new Bundle {
     val start     = Bool(INPUT)
     val size      = UInt(INPUT, width = 32)
-    val threshold = Vec.fill(255) { UInt(INPUT, width = w) }
+    val threshold = Vec.fill(255) { SInt(INPUT, width = w) }
     val matrix    = Decoupled(UInt(INPUT, width = w)).flip()
     val count     = Decoupled(UInt(OUTPUT, width = w))
     val finished  = Bool(OUTPUT)
@@ -206,7 +186,7 @@ class Thresholder(w: Int) extends Module {
   val sIdle :: sRunning :: sFinished :: Nil = Enum(UInt(), 3)
 
   val rState = Reg(init = sIdle)
-  val rCount = Reg(init = UInt(0, 32))
+  val rCount = Reg(init = SInt(0, 32))
   val rIndex = Reg(init = UInt(0, 32))
 
   io.finished := Bool(false)
