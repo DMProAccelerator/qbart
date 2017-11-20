@@ -135,6 +135,7 @@ def test_BitserialGEMM(platform):
 def main():
     platform = lib.alloc_platform()
     test_BitserialGEMM(platform)
+    lib.Run_UART(platform, 0b10001111);
     lib.dealloc_platform(platform)
 
 

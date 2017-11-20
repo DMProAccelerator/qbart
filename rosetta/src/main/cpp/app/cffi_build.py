@@ -36,6 +36,8 @@ void dealloc_dram(void* platform, void* addr);
 void* malloc(size_t size);
 void free(void* p);
 
+void Run_UART(void *_platform, char c);
+
 """)
 
 
@@ -44,6 +46,7 @@ r"""
 #include "bitserialGEMM.hpp"
 #include "matrix_convert.hpp"
 #include "platform.h"
+#include "uart_sender.hpp"
 #include <stdint.h>
 """,
 sources = ['platform-xlnk.cpp', 'matrix_convert.cpp', 'bitserialGEMM.cpp'], # add all sources here
