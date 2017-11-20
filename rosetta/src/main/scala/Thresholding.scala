@@ -28,9 +28,9 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
   val sIdle :: sReadThreshold :: sReadMatrix :: sApplyThreshold :: sReaderFlush :: sFinished :: Nil = Enum(UInt(), 6)
 
   val rState = Reg(init = UInt(sIdle))
-  val rThresholds = Vec.fill(20) { Reg(init = SInt(0, width = w)) }
+  val rThresholds = Vec.fill(255) { Reg(init = SInt(0, width = w)) }
   val rIndex = Reg(init = UInt(0, 32))
-  val rMatrixElem = Reg(init = UInt(0, width = w))
+  val rMatrixElem = Reg(init = SInt(0, width = w))
   val rMatrixValid = Reg(init = Bool(false))
   val rThresholdStart = Reg(init = Bool(false))
   val rBytesLeft = Reg(init = UInt(0, 32))
@@ -130,7 +130,7 @@ class Thresholder(w: Int) extends Module {
     val start     = Bool(INPUT)
     val size      = UInt(INPUT, width = 32)
     val threshold = Vec.fill(255) { SInt(INPUT, width = w) }
-    val matrix    = Decoupled(UInt(INPUT, width = w)).flip()
+    val matrix    = Decoupled(SInt(INPUT, width = w)).flip()
     val count     = Decoupled(UInt(OUTPUT, width = w))
     val finished  = Bool(OUTPUT)
   }
@@ -160,7 +160,7 @@ class Thresholder(w: Int) extends Module {
         rState := sFinished
       }
       .elsewhen (io.matrix.valid) {
-        rCount := rCount + (UInt(io.matrix.bits) >= UInt(io.threshold(rIndex)))
+        rCount := rCount + (io.matrix.bits >= io.threshold(rIndex))
         rIndex := rIndex + UInt(1)
       }
     }

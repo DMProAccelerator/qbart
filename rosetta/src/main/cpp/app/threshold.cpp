@@ -61,9 +61,35 @@ void Run_Thresholder(void *_platform, ThresholdMatrix *matrix, int64_t *input_ma
     auto platform = reinterpret_cast<WrapperRegDriver*>(_platform);
     QBART t(platform);
 
-    int32_t C = matrix->num_channels;
+    const uint32_t num_elems = matrix->num_rows * matrix->num_cols * matrix->num_channels;
+    const uint32_t num_elem_bytes = num_elems*sizeof(int64_t);
 
-    for (uint32_t c = 0; c < C; c++) {
+    const uint32_t num_thresholds = matrix->num_thresholds;
+    const uint32_t num_threshold_bytes = num_thresholds*sizeof(int64_t);
+
+    void* write_buffer = platform->allocAccelBuffer(num_elem_bytes);
+
+    platform->copyBufferHostToAccel(input_matrix_ptr, matrix->baseAddr, num_elem_bytes + num_threshold_bytes);
+
+    t.set_baseAddrRead((AccelDblReg) matrix->baseAddr);
+    t.set_baseAddrWrite((AccelDblReg) write_buffer);
+    t.set_byteCountReader(num_threshold_bytes + num_elem_bytes);
+    t.set_byteCountWriter(num_elem_bytes);
+    t.set_elemCount(num_elems + num_thresholds);
+    t.set_threshCount(num_thresholds);
+
+    t.set_thresh(1);
+    t.set_start(1);
+    while (t.get_done() != 1);
+    t.set_start(0);
+    t.set_thresh(0);
+
+    platform->copyBufferAccelToHost(write_buffer, result, num_elem_bytes);
+    platform->deallocAccelBuffer(write_buffer);
+
+#if 0
+    const int32_t C = matrix->num_channels;
+    for (int32_t c = 0; c < C; c++) {
         int32_t M = matrix->num_rows * matrix->num_cols;
         int32_t T = matrix->num_thresholds;
 
@@ -72,13 +98,18 @@ void Run_Thresholder(void *_platform, ThresholdMatrix *matrix, int64_t *input_ma
         // buffer must be a multiple of 8 because (N * 8 * 8) mod 64 = 0.
         int reader_size = M + T;
         int writer_size = M;
-        int read_byte_count = reader_size * sizeof(uint64_t);
-        int write_byte_count = writer_size * sizeof(uint64_t);
+        int read_byte_count = reader_size * sizeof(int64_t);
+        int write_byte_count = writer_size * sizeof(int64_t);
 
+
+        // TODO: Is this const? Alloc only once..
         void *write_buffer = platform->allocAccelBuffer(write_byte_count);
 
         // Copy host buffer to DRAM read buffer.
-        platform->copyBufferHostToAccel(input_matrix_ptr, matrix->baseAddr, read_byte_count);
+        //platform->copyBufferHostToAccel(input_matrix_ptr, matrix->baseAddr, read_byte_count);
+        platform->copyBufferHostToAccel(input_matrix_ptr, matrix->baseAddr, T*sizeof(int64_t));
+        platform->copyBufferHostToAccel(input_matrix_ptr+(T+c*M),
+            reinterpret_cast<void*>(reinterpret_cast<int64_t>(matrix->baseAddr) + T), M*sizeof(int64_t));
 
         t.set_baseAddrRead((AccelDblReg) matrix->baseAddr);
         t.set_baseAddrWrite((AccelDblReg) write_buffer);
@@ -95,9 +126,10 @@ void Run_Thresholder(void *_platform, ThresholdMatrix *matrix, int64_t *input_ma
 
         // Copy DRAM write buffer to host receive buffer.
         platform->copyBufferAccelToHost(write_buffer,
-            result + M * c, M * sizeof(uint64_t));
+            result + M * c, M * sizeof(int64_t));
 
         platform->deallocAccelBuffer(write_buffer);
+#endif
 
         //////// DEBUG START.
 
@@ -115,5 +147,5 @@ void Run_Thresholder(void *_platform, ThresholdMatrix *matrix, int64_t *input_ma
 #endif
 
         //////// DEBUG END.
-    }
+    //}
 }

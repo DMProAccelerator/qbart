@@ -6,32 +6,41 @@ import random
 
 def Run_Threshold(platform, m, t):
 
-    assert m.ndim == 3
-    assert t.ndim == 2
-    m = m.astype(np.int64)
-    t = t.astype(np.int64)
-    print(m)
-    print(t)
+    # TODO: Fix dimensions
 
-    c = np.concatenate((np.expand_dims(t, axis=0), m), axis=2)
+    assert m.ndim == 3
+    m = m.astype(np.int64)
+    t = t.astype(np.int64).flatten()
+    #print(m)
+    #print(t)
+
+    # TODO..
+    c = np.concatenate((t, m.flatten()))
     print(c)
 
     matrix = ffi.cast('ThresholdMatrix *', lib.malloc(ffi.sizeof('ThresholdMatrix')))
 
     matrix.num_channels, matrix.num_rows, matrix.num_cols = m.shape
-    _, matrix.num_thresholds = t.shape
+    matrix.num_thresholds = t.shape[0]
+
+    print(m.shape)
+    print(t.shape[0])
 
     matrix.baseAddr = lib.alloc_dram(platform, matrix.num_thresholds + matrix.num_rows * matrix.num_cols * matrix.num_channels * ffi.sizeof('int64_t'))
 
     result_len = matrix.num_rows * matrix.num_cols * matrix.num_channels
     R = np.zeros(result_len, dtype=np.int64)
-    result_ptr = ffi.cast('int64_t *', ffi.from_buffer(R))
 
+    result_ptr = ffi.cast('int64_t *', ffi.from_buffer(R))
     input_matrix_ptr = ffi.cast('int64_t *', ffi.from_buffer(c))
 
     lib.Run_Thresholder(platform, matrix, input_matrix_ptr, result_ptr)
 
     lib.dealloc_dram(platform, matrix.baseAddr)
+
+    lib.free(matrix)
+
+    # TODO: Possible dimension loss?
 
     return R
 
@@ -109,20 +118,21 @@ def Run_BitserialGEMM(platform, W, A):
 #####
 ################################################################################
 
-def run_test(platform, W, A):
-    software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
-    fpga_res = Run_BitserialGEMM(platform, W, A)
-    if not (software_res == fpga_res).all():
-        print("Software res ", software_res.shape)
-        print(software_res)
-        print("FPGA res ", fpga_res.shape)
-        print(fpga_res)
-        assert False
-    print("Test succeeded")
 
 
 
 def test_BitserialGEMM(platform):
+
+    def run_test(platform, W, A):
+        software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
+        fpga_res = Run_BitserialGEMM(platform, W, A)
+        if not (software_res == fpga_res).all():
+            print("Software res ", software_res.shape)
+            print(software_res)
+            print("FPGA res ", fpga_res.shape)
+            print(fpga_res)
+            assert False
+        print("Test succeeded")
 
     # Tweakale parameteres
     MAX_W_ROWS = 256
@@ -181,13 +191,13 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_b
     image.channels, image.rows, image.columns = image_data.shape
     packed_image_size = image.rows * image_bitplanes * image.channels * ((image.columns + 63)/64) * 8
     #image.baseAddr = lib.alloc_dram(platform, image.rows * image.columns * image.channels * ffi.sizeof('int8_t'))
-    image.baseAddr = lib.alloc_dram(platform, packed_image_size) 
+    image.baseAddr = lib.alloc_dram(platform, packed_image_size)
     image.bit_depth = image_bitplanes
 
     filters = ffi.cast('PackedConvolutionFilters * ', lib.malloc(ffi.sizeof('PackedConvolutionFilters')))
     filters.output_channels, filters.input_channels, window_size_squared = filters_data.shape
     filters.window_size = int(round(math.sqrt(window_size_squared)))
-    
+
     packed_filters_size = filters_bitplanes * filters.output_channels * filters.input_channels * ((window_size_squared + 63)/64) * 8
     #filters.base_addr = lib.alloc_dram(platform, filters.output_channels * filters.input_channels * window_size_squared * ffi.sizeof('int8_t'))
     filters.base_addr = lib.alloc_dram(platform, packed_filters_size)
@@ -197,7 +207,7 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_b
     conv_num_windows_in_width = ((image.columns - filters.window_size) >> stride_exponent) + 1
     conv_num_windows_in_height = ((image.rows - filters.window_size) >> stride_exponent) + 1
     result.channels, result.rows, result.columns, result.is_signed = filters.output_channels, conv_num_windows_in_width, conv_num_windows_in_height, True
-    
+
     result.baseAddr = lib.alloc_dram(platform, result.channels * result.rows * result.columns * ffi.sizeof('int64_t'))
     flattenedImage = image_data.flatten()
     flattenedFilters = filters_data.flatten()
@@ -214,7 +224,7 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_b
     result_pointer = ffi.cast('int64_t *', ffi.from_buffer(result_matrix))
     lib.result_matrix_to_matrix(platform, result, result_pointer, result_length)
     result_matrix = result_matrix.reshape((result.columns, result.rows, result.channels)).transpose((2, 0, 1))
- 
+
     lib.dealloc_dram(platform, result.baseAddr);
     lib.dealloc_dram(platform, filters.base_addr);
     lib.dealloc_dram(platform, image.baseAddr);
@@ -233,7 +243,7 @@ def software_convolution(image, filters, stride):
 
     out_height = (im_height - window_size) // stride + 1
     out_width = (im_width - window_size) // stride + 1
-    
+
     i0 = np.repeat(np.arange(window_size), window_size)
     i0 = np.tile(i0, im_channels)
     i1 = stride * np.repeat(np.arange(out_height), out_width)
@@ -247,11 +257,11 @@ def software_convolution(image, filters, stride):
     cols = cols.transpose(1, 2, 0).reshape(window_size * window_size * im_channels, -1)
 
     filters = filters.reshape((output_channels, input_channels * window_size * window_size))
-    
+
     vn = cols.reshape(im_channels * window_size * window_size, out_height * out_width)
     result = np.dot(filters, vn)
     return result #.flatten()
-    
+
 def test_convolution(platform):
     #random.seed('qbart')
 
@@ -259,7 +269,7 @@ def test_convolution(platform):
     image_height = 131
     image_num_channels = 1
     image_num_bitplanes = 1
-    
+
     num_output_channels = 1
     window_size = 11
     stride_exponent = 2
@@ -272,7 +282,7 @@ def test_convolution(platform):
 		for r in xrange(image_height)]
 		for ch in xrange(image_num_channels)],
 		dtype=np.int8)
-    
+
     filters = np.array(
     	[[[
 		random.choice(xrange(-(1<<(filter_num_bitplanes-1)), (1<<(filter_num_bitplanes-1))))
@@ -282,8 +292,8 @@ def test_convolution(platform):
 		dtype=np.int8)
     #print("Image: ")
     #print( image)
-    
-    #print("Filters: ") 
+
+    #print("Filters: ")
     #print(filters)
     result = Run_Convolution(platform, image, filters, stride_exponent, image_num_bitplanes, filter_num_bitplanes)
 
@@ -298,20 +308,20 @@ def test_convolution(platform):
         for j in range(num_output_channels):
 	    reversed_filters[j, i, :] = filters[j, i, ::-1]
 	    print "Transformed to " , reversed_filters[j, i, :], " from ", filters[j, i, :]
-    
+
     print("Reversed filters: ", reversed_filters)"""
 
     #result = Run_Convolution(platform, image, reversed_filters, stride_exponent, image_num_bitplanes, filter_num_bitplanes)
- 
+
     #print("Hardware result: ")
     #print(result)
 
     #print("\n\nSoftware result: ")
     #print(software_res)
     sw_flat = software_res.flatten()
-    hw_flat = result.flatten()   
+    hw_flat = result.flatten()
 
-    nums_unequal = 0 
+    nums_unequal = 0
     for i in range(sw_flat.shape[0]):
       if sw_flat[i] != hw_flat[i]:
         print("Element " + str(i) + " is different")
@@ -324,23 +334,47 @@ def test_convolution(platform):
       exit(-1)
 
 def test_thresholding(platform):
+
+    def software_threshold(m, t):
+        ch, rows, cols = m.shape
+        res = np.zeros(m.shape, dtype=np.int64)
+        for i in range(ch):
+            for x in t.flatten():
+                #print(m[i] >= x)
+                res[i] += m[i] >= x
+        return res
+
+    mn = -3000000000
+    mx =  3000000000
+    channels = 3
+    elements = 15
+    thresholds = 255
+
     m = np.array([[
-        [random.randint(1,10) for i in range(100)]
-      ]])
-    t = np.array([[random.randint(1,3) for i in range(3)]])
-    R = Run_Threshold(platform, m, t)
-    print("output:", R)
+        [random.randint(mn,mx) for i in range(elements)]
+      ] for _ in range(channels)])
+    t = np.array([sorted([random.randint(mn,mx) for i in range(thresholds)])])
+
+    R = Run_Threshold(platform, m, t).flatten()
+    sw_R = software_threshold(m, t).flatten()
+    if (sw_R == R).all():
+        print("Threshold succeeded")
+    else:
+        print("M:\n", m)
+        print("Thresholds: ", t)
+        print("output:\n{}".format(R))
+        print("software:\n{}".format(sw_R))
 
 def main():
     platform = lib.alloc_platform()
-    test_thresholding(platform)
 
     for i in range(3):
       print("Iteration ", i)
+      test_thresholding(platform)
       #test_convolution(platform)
       #test_BitserialGEMM(platform)
 
-    #lib.Run_UART(platform, 0b00001111) 
+    #lib.Run_UART(platform, 0b00001111)
     lib.dealloc_platform(platform)
 
 
