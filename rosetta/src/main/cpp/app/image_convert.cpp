@@ -13,8 +13,7 @@ void image_to_packed_image(void* _platform, int64_t* image, PackedMatrix* m) {
 
   uint32_t channels = m->channels,
   	rows = m->rows,
-	cols = m->columns,
-	bit_depth = m->bit_depth;
+	cols = m->columns;
 
   if(channels < 1){
     printf("Too few channels\n");
@@ -28,10 +27,12 @@ void image_to_packed_image(void* _platform, int64_t* image, PackedMatrix* m) {
     printf("Too few cols\n");
     exit(-1);
   }
-  if(bit_depth < 1){
-    printf("Too few bits\n");
-    exit(-1);
-  }
+
+  const auto p = calc_bit_depth_and_signed(image, rows * cols * channels);
+  const uint32_t bit_depth = p.first;
+  const bool is_signed = p.second;
+  m->bit_depth = bit_depth;
+  m->is_signed = is_signed;
 
   int packed_image_row_size_in_bytes = (cols + word_size_in_bits - 1)/word_size_in_bits * word_size_in_bytes,
   packed_image_size_per_bitplane = rows * packed_image_row_size_in_bytes,

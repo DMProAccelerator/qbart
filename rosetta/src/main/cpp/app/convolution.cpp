@@ -40,6 +40,9 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   int window_size = filters->window_size;
   int num_input_bitplanes = image->bit_depth, num_filter_bitplanes = filters->bit_depth;
 
+  bool image_is_signed = image->is_signed ? 1 : 0;
+  bool filters_are_signed = filters->is_signed ? 1: 0;
+
   int stride = 1 << strideExponent;
 
   //std::uniform_int_distribution<int8_t> input_distribution(-(1 << (num_input_bitplanes - 1)), (1 << (num_input_bitplanes - 1)) - 1);
@@ -222,8 +225,8 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   t.set_numOutputChannels(num_output_channels);
   t.set_filtersNumBits(num_filter_bitplanes);
 
-  t.set_imageIsSigned(1);
-  t.set_filtersAreSigned(1);
+  t.set_imageIsSigned(image_is_signed);
+  t.set_filtersAreSigned(filters_are_signed);
 
   t.set_conv(1);
   t.set_start(1);

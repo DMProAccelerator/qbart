@@ -102,8 +102,8 @@ def test_BitserialGEMM(platform):
     MIN_RAND_NUM = -2000
     MAX_RAND_NUM = 2000
 
-    NUM_NORMAL_RUNS = 10
-    NUM_BIPOLAR_RUNS = 10
+    NUM_NORMAL_RUNS = 3
+    NUM_BIPOLAR_RUNS = 3
 
     random.seed('qbart')
 
@@ -223,32 +223,55 @@ def software_convolution(image, filters, stride):
 
 def test_convolution(platform):
     #random.seed('qbart')
+   
+    #Set these to toggle sign
+    image_signed = False
+    filters_signed = True
 
-    image_width = 131
-    image_height = 131
-    image_num_channels = 1
+    image_width = 331
+    image_height = 231
+    image_num_channels = 4
     image_num_bitplanes = 8
 
-    num_output_channels = 1
+    num_output_channels = 5
     window_size = 11
     stride_exponent = 2
     filter_num_bitplanes = 8
 
-    image = np.array(
-         [[[
+    if image_signed:
+	image = np.array(
+	 [[[
 		random.choice(xrange(-(1 << (image_num_bitplanes - 1)), (1 << (image_num_bitplanes - 1))))
 		for c in xrange(image_width)]
 		for r in xrange(image_height)]
 		for ch in xrange(image_num_channels)],
-		dtype=np.int8)
+		dtype=np.int64)
+    else:
+	image = np.array(
+	 [[[
+		random.choice(xrange(0, 1 << image_num_bitplanes))
+		for c in xrange(image_width)]
+		for r in xrange(image_height)]
+		for ch in xrange(image_num_channels)],
+		dtype=np.int64)
 
-    filters = np.array(
-    	[[[
+    if filters_signed:
+	filters = np.array(
+	[[[
 		random.choice(xrange(-(1<<(filter_num_bitplanes-1)), (1<<(filter_num_bitplanes-1))))
 		for k in xrange(window_size * window_size)]
 		for c in xrange(image_num_channels)]
 		for r in xrange(num_output_channels)],
-		dtype=np.int8)
+		dtype=np.int64)
+    else:
+	filters = np.array(
+	[[[
+		random.choice(xrange(0, 1<<filter_num_bitplanes))
+		for k in xrange(window_size * window_size)]
+		for c in xrange(image_num_channels)]
+		for r in xrange(num_output_channels)],
+		dtype=np.int64)
+	
     #print("Image: ")
     #print( image)
 
