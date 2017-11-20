@@ -10,7 +10,6 @@
 package rosetta
 
 import Chisel._
-import fpgatidbits.PlatformWrapper._
 
 
 class Channel extends Bundle {
