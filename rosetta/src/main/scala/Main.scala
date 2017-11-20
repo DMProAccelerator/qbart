@@ -4,7 +4,7 @@ import Chisel._
 import sys.process._
 
 object Settings {
-  val myInstFxn = {() => new TestBitserialGEMM()}
+  val myInstFxn = {() => new QBART()}
 }
 
 object ChiselMain {

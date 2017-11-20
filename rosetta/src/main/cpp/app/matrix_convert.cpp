@@ -83,15 +83,19 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
 
   // convert to packed format
   size_t buf_len = calculate_packed_buf_len(m);
+  if (m->baseAddr == NULL) {
+    m->baseAddr = platform->allocAccelBuffer(buf_len*sizeof(uint64_t));
+  }
+
   uint64_t* buffer = new uint64_t[buf_len];
   size_t buf_index = 0;
-  for (int ch = 0; ch < channels; ch++) {
-    for (int bd = 0; bd < bit_depth; bd++) {
+  for (uint32_t ch = 0; ch < channels; ch++) {
+    for (uint32_t bd = 0; bd < bit_depth; bd++) {
       uint64_t mask = 1 << bd;
-      for (int r = 0; r < rows; r++) {
+      for (uint32_t r = 0; r < rows; r++) {
         uint64_t buf = 0;
-        for (int c = 0; c < cols; c++) {
-          for (int p = 0; p < 64 && c < cols; c++, p++) {
+        for (uint32_t c = 0; c < cols; c++) {
+          for (uint32_t p = 0; p < 64 && c < cols; c++, p++) {
             uint64_t bit = static_cast<uint64_t>(arr[index(ch, r, c, channels, rows, cols)]) & mask;
             if (bit) {
               buf |= (static_cast<uint64_t>(1) << p);
@@ -108,11 +112,12 @@ void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMa
     }
   }
 
+  // Use columns = number of uints in row
+  m->columns = (m->columns-1)/64 + 1;
+
   // write buffer to DRAM
   platform->copyBufferHostToAccel(buffer, m->baseAddr, buf_len*sizeof(uint64_t));
 
-  // Use columns = number of uints in row
-  m->columns = (m->columns-1)/64 + 1;
 
   delete[] buffer;
 }

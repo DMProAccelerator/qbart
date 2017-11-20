@@ -5,6 +5,7 @@ ffibuilder = FFI()
 ffibuilder.cdef("""
 
 void* alloc_platform(void);
+void dealloc_platform(void* platform);
 
 
 void* malloc(size_t size);
