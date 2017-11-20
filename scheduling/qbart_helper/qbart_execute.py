@@ -28,19 +28,19 @@ class qbart_execute(multiprocessing.Process):
 	def run(self):
 		qbart_classifications = []
 	
-		for image_index in range(len(images)):
-			activations = images[image_index][1]
-			for layer in qnn:
+		for image_index in range(len(self.images)):
+			activations = self.images[image_index][1]
+			for layer in self.qnn:
 				# Each layer will either do calculations on the A9 or the FPGA.
 				# Everything that the FPGA is unable to do, simply runs on the CPU.
 				# It will initially look very similar to alot in the provided "layers.py", 
 				# but should in the end be entirely different when FPGA implements are finished.
 				print(layer.layerType())
 				
-				if (layer.layerType() == "QNNFullyConnectedLayer"):
+				if (layer.layerType() == "Intendedtypingerror_QNNFullyConnectedLayer"):
 					print("Executing FC on FPGA.")
-					print(activations)
 					activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
+					print("Finished running FC on FPGA")
 				
 				# Just run the CPU version if an FPGA component doesn't exist.
 				else:

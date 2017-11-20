@@ -132,6 +132,12 @@ def test_BitserialGEMM(platform):
         test(platform, bipolar=True)
 
 
+def uart_send_message(char):
+    """
+     example usage: uart_send_message(0b00001111)
+    """
+    lib.Run_UART(lib.alloc_platform(), char)
+
 def main():
     platform = lib.alloc_platform()
     #test_BitserialGEMM(platform)
