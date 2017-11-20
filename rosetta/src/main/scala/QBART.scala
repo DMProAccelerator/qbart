@@ -19,6 +19,10 @@ class QBART() extends RosettaAccelerator {
     val fc = Bool(INPUT)
     val conv = Bool(INPUT)
     val thresh = Bool(INPUT)
+    val uart = Bool(INPUT)
+
+    /////// UART IO
+    val uart_data = UInt(INPUT, 8)
 
     /////// FULLY CONNECTED IO
     val lhs_addr = UInt(INPUT, width = 64)
@@ -54,7 +58,8 @@ class QBART() extends RosettaAccelerator {
 
     val filtersNumBits = UInt(INPUT, width=4)
 
-    val finishedWithSlidingWindow = Bool(OUTPUT)
+    val finishedSlidingWindow = Bool(OUTPUT)
+    val sliderWaiting = Bool(OUTPUT)
 
     /////// THRESHOLDING IO
 
@@ -72,17 +77,19 @@ class QBART() extends RosettaAccelerator {
 
   io.done := Bool(false)
 
-
   // DRAM IO + defaults
 
   val reader0 = Module(new StreamReader(new StreamReaderParams(
     streamWidth = word_size, fifoElems = 8, mem = p.toMemReqParams(),
     maxBeats = 1, chanID = 0, disableThrottle = true
   ))).io
+
+  val reader0queue = FPGAQueue(reader0.out, 2)
+
   reader0.baseAddr   := UInt(0)
   reader0.byteCount  := UInt(0)
   reader0.start      := Bool(false)
-  reader0.out.ready  := Bool(false)
+  reader0queue.ready  := Bool(false)
   reader0.req <> io.memPort(0).memRdReq
   reader0.rsp <> io.memPort(0).memRdRsp
   plugMemWritePort(0)
@@ -91,10 +98,13 @@ class QBART() extends RosettaAccelerator {
     streamWidth = word_size, fifoElems = 8, mem = p.toMemReqParams(),
     maxBeats = 1, chanID = 0, disableThrottle = true
   ))).io
+
+  val reader1queue = FPGAQueue(reader1.out, 2)
+
   reader1.baseAddr   := UInt(0)
   reader1.byteCount  := UInt(0)
   reader1.start      := Bool(false)
-  reader1.out.ready  := Bool(false)
+  reader1queue.ready  := Bool(false)
   reader1.req <> io.memPort(1).memRdReq
   reader1.rsp <> io.memPort(1).memRdRsp
   plugMemWritePort(1)
@@ -115,14 +125,23 @@ class QBART() extends RosettaAccelerator {
 
   // Layer units
 
+  val uart = Module(new Sender(50000000, 9600)).io
+  uart.start := Bool(false)
+  uart.data := io.uart_data
+  io.tx := uart.txd
+
   val fc = Module(new BitserialGEMM(64, p)).io
   fc.start := Bool(false)
   fc.lhs_reader.out.valid := Bool(false)
   fc.lhs_reader.out.bits := UInt(0)
   fc.rhs_reader.out.valid := Bool(false)
   fc.rhs_reader.out.bits := UInt(0)
-  fc.writer.in.ready := Bool(false)
+
   fc.writer.finished := writer.finished
+  fc.writer.in.ready := Bool(false)
+  //val fc_writer_queue = FPGAQueue(fc.writer.in, 2)
+  //fc_writer_queue.ready := Bool(false)
+
   fc.lhs_addr := io.lhs_addr
   fc.rhs_addr := io.rhs_addr
   fc.res_addr := io.res_addr
@@ -165,9 +184,14 @@ class QBART() extends RosettaAccelerator {
 
   conv.writerIF.finished := Bool(false)
   conv.writerIF.in.ready := Bool(false)
+
+  //val conv_writer_queue = FPGAQueue(conv.writerIF.in, 2)
+  //conv_writer_queue.ready := Bool(false)
+
   conv.writerIF.active := Bool(false)
 
-  io.finishedWithSlidingWindow := conv.finishedWithSlidingWindow
+  io.finishedSlidingWindow := conv.finishedWithSlidingWindow
+  io.sliderWaiting := conv.waiting_for_writer
 
 
   val thresh = Module(new DMAHandler(word_size, p)).io
@@ -192,7 +216,7 @@ class QBART() extends RosettaAccelerator {
 
   // This state machine rewires readers/writers to running layers
 
-  val s_idle :: s_fc :: s_conv :: s_thresh :: s_done :: Nil = Enum(UInt(), 5)
+  val s_idle :: s_uart :: s_fc :: s_conv :: s_thresh :: s_done :: Nil = Enum(UInt(), 6)
   val state = Reg(init=UInt(s_idle))
 
   switch (state) {
@@ -202,33 +226,42 @@ class QBART() extends RosettaAccelerator {
         when      (io.fc)     { state := s_fc }
         .elsewhen (io.conv)   { state := s_conv }
         .elsewhen (io.thresh) { state := s_thresh }
+        .elsewhen (io.uart) { state := s_uart }
       }
     }
 
+    is (s_uart) {
+      when (uart.done) { state := s_done }
+      .otherwise { uart.start := Bool(true) }  
+    }
+    
     is (s_fc) {
       when (fc.done) {
         state := s_done
       }
       .otherwise {
-        fc.lhs_reader.out.valid := reader0.out.valid
-        fc.lhs_reader.out.bits := reader0.out.bits
-        fc.rhs_reader.out.valid := reader1.out.valid
-        fc.rhs_reader.out.bits := reader1.out.bits
+        fc.lhs_reader.out.valid := reader0queue.valid
+        fc.lhs_reader.out.bits := reader0queue.bits
+        fc.rhs_reader.out.valid := reader1queue.valid
+        fc.rhs_reader.out.bits := reader1queue.bits
+        //fc_writer_queue.ready := writer.in.ready
         fc.writer.in.ready := writer.in.ready
 
         reader0.baseAddr := fc.lhs_reader.baseAddr
         reader0.byteCount := fc.lhs_reader.byteCount
         reader0.start := fc.lhs_reader.start
-        reader0.out.ready := fc.lhs_reader.out.ready
+        reader0queue.ready := fc.lhs_reader.out.ready
 
         reader1.baseAddr := fc.rhs_reader.baseAddr
         reader1.byteCount := fc.rhs_reader.byteCount
         reader1.start := fc.rhs_reader.start
-        reader1.out.ready := fc.rhs_reader.out.ready
+        reader1queue.ready := fc.rhs_reader.out.ready
 
         writer.baseAddr := fc.writer.baseAddr
         writer.byteCount := fc.writer.byteCount
         writer.start := fc.writer.start
+        //writer.in.bits := fc_writer_queue.bits
+        //writer.in.valid := fc_writer_queue.valid
         writer.in.bits := fc.writer.in.bits
         writer.in.valid := fc.writer.in.valid
 
@@ -244,28 +277,31 @@ class QBART() extends RosettaAccelerator {
         reader0.baseAddr := conv.reader0IF.baseAddr
         reader0.byteCount := conv.reader0IF.byteCount
         reader0.start := conv.reader0IF.start
-        reader0.out.ready := conv.reader0IF.out.ready
+        reader0queue.ready := conv.reader0IF.out.ready
 
         reader1.baseAddr := conv.reader1IF.baseAddr
         reader1.byteCount := conv.reader1IF.byteCount
         reader1.start := conv.reader1IF.start
-        reader1.out.ready := conv.reader1IF.out.ready
+        reader1queue.ready := conv.reader1IF.out.ready
 
         writer.baseAddr := conv.writerIF.baseAddr
         writer.byteCount := conv.writerIF.byteCount
         writer.start := conv.writerIF.start
         writer.in.bits := conv.writerIF.in.bits
         writer.in.valid := conv.writerIF.in.valid
+        //writer.in.bits := conv_writer_queue.bits
+        //writer.in.valid := conv_writer_queue.valid
 
-        conv.reader0IF.out.valid := reader0.out.valid
-        conv.reader0IF.out.bits := reader0.out.bits
+        conv.reader0IF.out.valid := reader0queue.valid
+        conv.reader0IF.out.bits := reader0queue.bits
         conv.reader0IF.finished := reader0.finished
 
-        conv.reader1IF.out.valid := reader1.out.valid
-        conv.reader1IF.out.bits := reader1.out.bits
+        conv.reader1IF.out.valid := reader1queue.valid
+        conv.reader1IF.out.bits := reader1queue.bits
         conv.reader1IF.finished := reader1.finished
 
         conv.writerIF.finished := writer.finished
+        //conv_writer_queue.ready := writer.in.ready
         conv.writerIF.in.ready := writer.in.ready
         conv.writerIF.active := writer.active
 
@@ -281,7 +317,8 @@ class QBART() extends RosettaAccelerator {
         reader0.baseAddr := thresh.reader.baseAddr
         reader0.byteCount := thresh.reader.byteCount
         reader0.start := thresh.reader.start
-        reader0.out.ready := thresh.reader.out.ready
+        //reader0.out.ready := thresh.reader.out.ready
+        reader0queue.ready := thresh.reader.out.ready
 
         writer.baseAddr := thresh.writer.baseAddr
         writer.byteCount := thresh.writer.byteCount
@@ -289,8 +326,11 @@ class QBART() extends RosettaAccelerator {
         writer.in.bits := thresh.writer.in.bits
         writer.in.valid := thresh.writer.in.valid
 
-        thresh.reader.out.valid := reader0.out.valid
-        thresh.reader.out.bits := reader0.out.bits
+        //thresh.reader.out.valid := reader0.out.valid
+        //thresh.reader.out.bits := reader0.out.bits
+        thresh.reader.out.valid := reader0queue.valid
+        thresh.reader.out.bits := reader0queue.bits
+
 
         thresh.writer.finished := writer.finished
         thresh.writer.in.ready := writer.in.ready

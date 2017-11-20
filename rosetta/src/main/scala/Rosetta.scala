@@ -45,6 +45,7 @@ class RosettaAcceleratorIF(numMemPorts: Int) extends Bundle {
   val sw = UInt(INPUT, 2)
   // user buttons BN3..0
   val btn = UInt(INPUT, 4)
+  val tx = UInt(OUTPUT, 1)
 }
 
 // base class for Rosetta accelerators
@@ -111,6 +112,7 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
     val sw = UInt(INPUT, 2)
     // user buttons BN3..0
     val btn = UInt(INPUT, 4)
+    val tx = UInt(OUTPUT, 1)
   }
   setName("PYNQWrapper")
   setModuleName("PYNQWrapper")
@@ -230,6 +232,7 @@ class RosettaWrapper(instFxn: () => RosettaAccelerator) extends Module {
   accel.io.sw := io.sw
   accel.io.btn := io.btn
   io.led := accel.io.led
+  io.tx := accel.io.tx
 
   // memory port adapters and connections
   for(i <- 0 until accel.numMemPorts) {
