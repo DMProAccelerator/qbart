@@ -21,6 +21,9 @@ class QBART() extends RosettaAccelerator {
     val conv = Bool(INPUT)
     val thresh = Bool(INPUT)
 
+    /////// UART IO
+    val uart_data = UInt(INPUT, 8)
+
     /////// FULLY CONNECTED IO
     val lhs_addr = UInt(INPUT, width = 64)
     val rhs_addr = UInt(INPUT, width = 64)
@@ -109,6 +112,11 @@ class QBART() extends RosettaAccelerator {
 
   // Layer units
 
+  val uart = Module(new Sender(50000000, 9600)).io
+  uart.data := io.uart_data
+  uart.start := Bool(false)
+  io.tx := uart.txd
+
   val fc = Module(new BitserialGEMM(64, p)).io
   fc.start := Bool(false)
   fc.lhs_reader.out.valid := Bool(false)
@@ -164,7 +172,7 @@ class QBART() extends RosettaAccelerator {
 
   // This state machine rewires readers/writers to running layers
 
-  val s_idle :: s_fc :: s_conv :: s_thresh :: s_done :: Nil = Enum(UInt(), 5)
+  val s_idle :: s_uart :: s_fc :: s_conv :: s_thresh :: s_done :: Nil = Enum(UInt(), 6)
   val state = Reg(init=UInt(s_idle))
 
   switch (state) {
@@ -175,6 +183,11 @@ class QBART() extends RosettaAccelerator {
         .elsewhen (io.conv)   { state := s_conv }
         .elsewhen (io.thresh) { state := s_thresh }
       }
+    }
+
+    is (s_uart) {
+      when (uart.done) { state := s_done }
+      .otherwise { uart.start := Bool(true) }   
     }
     
     is (s_fc) {

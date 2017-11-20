@@ -3,7 +3,6 @@ import numpy as np
 import math
 import random
 
-
 def Run_BitserialGEMM(platform, W, A):
     if W.ndim == 2:
         W = np.expand_dims(W, axis=0)
@@ -135,7 +134,7 @@ def test_BitserialGEMM(platform):
 def main():
     platform = lib.alloc_platform()
     test_BitserialGEMM(platform)
-    lib.Run_UART(platform, 0b10001111);
+    lib.Run_UART(platform, 0b00001111);
     lib.dealloc_platform(platform)
 
 
