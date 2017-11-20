@@ -61,6 +61,11 @@ connect_bd_net [get_bd_pins /PYNQWrapper_0/io_sw] [get_bd_ports io_sw]
 # buttons
 create_bd_port -dir I -from 3 -to 0 io_btn
 connect_bd_net [get_bd_pins /PYNQWrapper_0/io_btn] [get_bd_ports io_btn]
+# tx
+create_bd_port -dir O io_tx
+connect_bd_net [get_bd_pins /PYNQWrapper_0/io_tx] [get_bd_ports io_tx]
+
+
 
 # connect accelerator AXI masters to Zynq PS
 apply_bd_automation -rule xilinx.com:bd_rule:axi4 -config {Master "/PYNQWrapper_0/mem0" Clk "Auto" }  [get_bd_intf_pins ps7/S_AXI_HP0]
