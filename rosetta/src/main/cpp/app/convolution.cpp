@@ -190,6 +190,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   //platform->copyBufferHostToAccel(packed_image, dram_image, packed_image_size_in_bytes);
   //platform->copyBufferHostToAccel(packed_filters, dram_filters, packed_filters_size_in_bytes);
   
+#if 0
   printf("Image address: %x\n", dram_image);
   printf("Filter address: %x\n", dram_filters);
   printf("Output address: %x\n", dram_result);
@@ -204,6 +205,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   printf("Window size: %d\n", window_size);
   printf("Num output channels: %d\n", num_output_channels);
   printf("Num filter bitplanes: %d\n", num_filter_bitplanes);
+#endif
   
   t.set_imageAddr((AccelDblReg)dram_image);
   t.set_filterAddr((AccelDblReg)dram_filters);
@@ -223,7 +225,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   t.set_conv(1);
   t.set_start(1);
 
-  printf("Starting sliding window\n");
+  //printf("Starting sliding window\n");
   /*while(!t.get_finishedWithSlidingWindow()){
     if(t.get_sliderWaiting()){
       printf("Slider waitingrrr\n");
@@ -234,7 +236,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
 
   t.set_conv(0);
   t.set_start(0);
-  printf("Finished convolution!\n");
+  //printf("Finished convolution!\n");
 
 
   /*int64_t accel_result[expected_result_num_elements];

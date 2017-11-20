@@ -9,8 +9,6 @@ void image_to_packed_image(void* _platform, int8_t* image, PackedMatrix* m) {
   int word_size_in_bits = 64;
   int word_size_in_bytes = word_size_in_bits / 8;
 
-  printf("Image to packed\n");
-
   uint32_t channels = m->channels,
   	rows = m->rows,
 	cols = m->columns,
