@@ -102,8 +102,8 @@ def test_BitserialGEMM(platform):
     MIN_RAND_NUM = -2000
     MAX_RAND_NUM = 2000
 
-    NUM_NORMAL_RUNS = 10
-    NUM_BIPOLAR_RUNS = 10
+    NUM_NORMAL_RUNS = 3
+    NUM_BIPOLAR_RUNS = 3
 
     random.seed('qbart')
 
@@ -150,13 +150,13 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_b
     image.channels, image.rows, image.columns = image_data.shape
     packed_image_size = image.rows * image_bitplanes * image.channels * ((image.columns + 63)/64) * 8
     #image.baseAddr = lib.alloc_dram(platform, image.rows * image.columns * image.channels * ffi.sizeof('int8_t'))
-    image.baseAddr = lib.alloc_dram(platform, packed_image_size) 
+    image.baseAddr = lib.alloc_dram(platform, packed_image_size)
     image.bit_depth = image_bitplanes
 
     filters = ffi.cast('PackedConvolutionFilters * ', lib.malloc(ffi.sizeof('PackedConvolutionFilters')))
     filters.output_channels, filters.input_channels, window_size_squared = filters_data.shape
     filters.window_size = int(round(math.sqrt(window_size_squared)))
-    
+
     packed_filters_size = filters_bitplanes * filters.output_channels * filters.input_channels * ((window_size_squared + 63)/64) * 8
     #filters.base_addr = lib.alloc_dram(platform, filters.output_channels * filters.input_channels * window_size_squared * ffi.sizeof('int8_t'))
     filters.base_addr = lib.alloc_dram(platform, packed_filters_size)
@@ -166,13 +166,13 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_b
     conv_num_windows_in_width = ((image.columns - filters.window_size) >> stride_exponent) + 1
     conv_num_windows_in_height = ((image.rows - filters.window_size) >> stride_exponent) + 1
     result.channels, result.rows, result.columns, result.is_signed = filters.output_channels, conv_num_windows_in_width, conv_num_windows_in_height, True
-    
-    result.baseAddr = lib.alloc_dram(platform, result.channels * result.rows * result.columns * ffi.sizeof('int64_t'))
-    flattenedImage = image_data.flatten()
-    flattenedFilters = filters_data.flatten()
 
-    flatImPointer = ffi.cast('int8_t *', ffi.from_buffer(flattenedImage))
-    flatFiltersPointer = ffi.cast('int8_t *', ffi.from_buffer(flattenedFilters))
+    result.baseAddr = lib.alloc_dram(platform, result.channels * result.rows * result.columns * ffi.sizeof('int64_t'))
+    flattenedImage = image_data.flatten().astype(np.int64)
+    flattenedFilters = filters_data.flatten().astype(np.int64)
+
+    flatImPointer = ffi.cast('int64_t *', ffi.from_buffer(flattenedImage))
+    flatFiltersPointer = ffi.cast('int64_t *', ffi.from_buffer(flattenedFilters))
 
     lib.image_to_packed_image(platform, flatImPointer, image)
     lib.filters_to_packed_filters(platform, flatFiltersPointer, filters)
@@ -183,7 +183,7 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, image_b
     result_pointer = ffi.cast('int64_t *', ffi.from_buffer(result_matrix))
     lib.result_matrix_to_matrix(platform, result, result_pointer, result_length)
     result_matrix = result_matrix.reshape((result.columns, result.rows, result.channels)).transpose((2, 0, 1))
- 
+
     lib.dealloc_dram(platform, result.baseAddr);
     lib.dealloc_dram(platform, filters.base_addr);
     lib.dealloc_dram(platform, image.baseAddr);
@@ -202,7 +202,7 @@ def software_convolution(image, filters, stride):
 
     out_height = (im_height - window_size) // stride + 1
     out_width = (im_width - window_size) // stride + 1
-    
+
     i0 = np.repeat(np.arange(window_size), window_size)
     i0 = np.tile(i0, im_channels)
     i1 = stride * np.repeat(np.arange(out_height), out_width)
@@ -216,43 +216,66 @@ def software_convolution(image, filters, stride):
     cols = cols.transpose(1, 2, 0).reshape(window_size * window_size * im_channels, -1)
 
     filters = filters.reshape((output_channels, input_channels * window_size * window_size))
-    
+
     vn = cols.reshape(im_channels * window_size * window_size, out_height * out_width)
     result = np.dot(filters, vn)
     return result #.flatten()
-    
+
 def test_convolution(platform):
     #random.seed('qbart')
+   
+    #Set these to toggle sign
+    image_signed = False
+    filters_signed = True
 
-    image_width = 131
-    image_height = 131
-    image_num_channels = 1
-    image_num_bitplanes = 1
-    
-    num_output_channels = 1
+    image_width = 331
+    image_height = 231
+    image_num_channels = 4
+    image_num_bitplanes = 8
+
+    num_output_channels = 5
     window_size = 11
     stride_exponent = 2
-    filter_num_bitplanes = 1
+    filter_num_bitplanes = 8
 
-    image = np.array(
-         [[[
+    if image_signed:
+	image = np.array(
+	 [[[
 		random.choice(xrange(-(1 << (image_num_bitplanes - 1)), (1 << (image_num_bitplanes - 1))))
 		for c in xrange(image_width)]
 		for r in xrange(image_height)]
 		for ch in xrange(image_num_channels)],
-		dtype=np.int8)
-    
-    filters = np.array(
-    	[[[
+		dtype=np.int64)
+    else:
+	image = np.array(
+	 [[[
+		random.choice(xrange(0, 1 << image_num_bitplanes))
+		for c in xrange(image_width)]
+		for r in xrange(image_height)]
+		for ch in xrange(image_num_channels)],
+		dtype=np.int64)
+
+    if filters_signed:
+	filters = np.array(
+	[[[
 		random.choice(xrange(-(1<<(filter_num_bitplanes-1)), (1<<(filter_num_bitplanes-1))))
 		for k in xrange(window_size * window_size)]
 		for c in xrange(image_num_channels)]
 		for r in xrange(num_output_channels)],
-		dtype=np.int8)
+		dtype=np.int64)
+    else:
+	filters = np.array(
+	[[[
+		random.choice(xrange(0, 1<<filter_num_bitplanes))
+		for k in xrange(window_size * window_size)]
+		for c in xrange(image_num_channels)]
+		for r in xrange(num_output_channels)],
+		dtype=np.int64)
+	
     #print("Image: ")
     #print( image)
-    
-    #print("Filters: ") 
+
+    #print("Filters: ")
     #print(filters)
     result = Run_Convolution(platform, image, filters, stride_exponent, image_num_bitplanes, filter_num_bitplanes)
 
@@ -267,23 +290,23 @@ def test_convolution(platform):
         for j in range(num_output_channels):
 	    reversed_filters[j, i, :] = filters[j, i, ::-1]
 	    print "Transformed to " , reversed_filters[j, i, :], " from ", filters[j, i, :]
-    
+
     print("Reversed filters: ", reversed_filters)"""
 
     #result = Run_Convolution(platform, image, reversed_filters, stride_exponent, image_num_bitplanes, filter_num_bitplanes)
- 
-    print("Hardware result: ")
-    print(result)
 
-    print("\n\nSoftware result: ")
-    print(software_res)
+    #print("Hardware result: ")
+    #print(result)
+
+    #print("\n\nSoftware result: ")
+    #print(software_res)
     sw_flat = software_res.flatten()
-    hw_flat = result.flatten()   
+    hw_flat = result.flatten()
 
-    nums_unequal = 0 
+    nums_unequal = 0
     for i in range(sw_flat.shape[0]):
 	if sw_flat[i] != hw_flat[i]:
-		print("Element " + str(i) + " is different")
+		#print("Element " + str(i) + " is different")
 		nums_unequal += 1
     if (software_res == result).all():
     	print("The two were equal!")
@@ -300,7 +323,7 @@ def main():
     	print("Iteration ", i)
     	test_convolution(platform)
         test_BitserialGEMM(platform)
-    lib.Run_UART(platform, 0b00001111) 
+    lib.Run_UART(platform, 0b00001111)
     lib.dealloc_platform(platform)
 
 

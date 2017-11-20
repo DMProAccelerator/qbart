@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstdlib>
+#include <utility>
 
 typedef struct PackedMatrix {
   void* baseAddr;
@@ -18,6 +19,9 @@ typedef struct ResultMatrix {
   uint32_t columns;
   bool is_signed;
 } ResultMatrix;
+
+template<typename T>
+std::pair<int8_t, bool> calc_bit_depth_and_signed(T* arr, size_t len);
 
 void matrix_to_packed_matrix(void* _platform, int64_t* arr, size_t len, PackedMatrix* m);
 

@@ -4,18 +4,17 @@
 #include <cassert>
 #include <string.h>
 
-void image_to_packed_image(void* _platform, int8_t* image, PackedMatrix* m) {
+void image_to_packed_image(void* _platform, int64_t* image, PackedMatrix* m) {
   WrapperRegDriver* platform = (WrapperRegDriver*)_platform;
   int word_size_in_bits = 64;
   int word_size_in_bytes = word_size_in_bits / 8;
 
-  printf("Image to packed\n");
+  //printf("Image to packed\n");
 
   uint32_t channels = m->channels,
   	rows = m->rows,
-	cols = m->columns,
-	bit_depth = m->bit_depth;
-	
+	cols = m->columns;
+
   if(channels < 1){
     printf("Too few channels\n");
     exit(-1);
@@ -28,10 +27,12 @@ void image_to_packed_image(void* _platform, int8_t* image, PackedMatrix* m) {
     printf("Too few cols\n");
     exit(-1);
   }
-  if(bit_depth < 1){
-    printf("Too few bits\n");
-    exit(-1);
-  }
+
+  const auto p = calc_bit_depth_and_signed(image, rows * cols * channels);
+  const uint32_t bit_depth = p.first;
+  const bool is_signed = p.second;
+  m->bit_depth = bit_depth;
+  m->is_signed = is_signed;
 
   int packed_image_row_size_in_bytes = (cols + word_size_in_bits - 1)/word_size_in_bits * word_size_in_bytes,
   packed_image_size_per_bitplane = rows * packed_image_row_size_in_bytes,
@@ -43,35 +44,41 @@ void image_to_packed_image(void* _platform, int8_t* image, PackedMatrix* m) {
   for(int i = 0; i < channels; i++){
     for(int j = 0; j < bit_depth; j++){
       for(int k = 0; k < rows; k++){
-	int currByte = 0, currBit = 0;
-	for(int l = 0; l < cols; l++){
-	  packed_image[packed_image_size_per_channel * i +
-		       packed_image_size_per_bitplane * j +
-		       packed_image_row_size_in_bytes * k +
-		       currByte]
-	    |= ((image[i * rows * cols + k * cols + l] >> j) & 1 ) << currBit;
-	  currBit++;
-	  if(currBit == 8){
-	    currBit = 0;
-	    currByte++;
-	  }
-	}
+  int currByte = 0, currBit = 0;
+  for(int l = 0; l < cols; l++){
+    packed_image[packed_image_size_per_channel * i +
+           packed_image_size_per_bitplane * j +
+           packed_image_row_size_in_bytes * k +
+           currByte]
+      |= ((image[i * rows * cols + k * cols + l] >> j) & 1 ) << currBit;
+    currBit++;
+    if(currBit == 8){
+      currBit = 0;
+      currByte++;
+    }
+  }
       }
     }
-  } 
-  
+  }
+
   platform->copyBufferHostToAccel(packed_image, m->baseAddr, packed_image_size_in_bytes);
 
   delete[] packed_image;
 }
 
-void filters_to_packed_filters(void* _platform, int8_t* arr, PackedConvolutionFilters* m){
+void filters_to_packed_filters(void* _platform, int64_t* arr, PackedConvolutionFilters* m){
   WrapperRegDriver* platform = reinterpret_cast<WrapperRegDriver*>(_platform);
   assert(arr != NULL);
+
   const uint32_t input_channels = m->input_channels,
     output_channels = m->output_channels,
-    bit_depth = m->bit_depth,
     window_size= m->window_size;
+
+  const auto p = calc_bit_depth_and_signed(arr, input_channels*output_channels*window_size*window_size);
+  const uint32_t bit_depth = p.first;
+  const bool is_signed = p.second;
+  m->bit_depth = bit_depth;
+  m->is_signed = is_signed;
 
   assert(input_channels > 0);
   assert(bit_depth > 1);
@@ -88,7 +95,7 @@ void filters_to_packed_filters(void* _platform, int8_t* arr, PackedConvolutionFi
   uint8_t* packed_filters = new uint8_t[packed_filters_size_in_bytes];
   memset(packed_filters, 0, packed_filters_size_in_bytes);
 
-  
+
   for(int i = 0; i < bit_depth; i++){
     for(int j = 0; j < output_channels; j++){
       for(int k = 0; k < input_channels; k++){
@@ -111,7 +118,7 @@ void filters_to_packed_filters(void* _platform, int8_t* arr, PackedConvolutionFi
       }
     }
   }
-  
+
   platform->copyBufferHostToAccel(packed_filters, m->base_addr, packed_filters_size_in_bytes);
 
   delete [] packed_filters;
