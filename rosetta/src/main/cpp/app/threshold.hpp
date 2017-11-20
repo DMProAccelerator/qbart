@@ -1,5 +1,5 @@
 #pragma once
-#include <cstdint.h>
+#include <cstdint>
 
 typedef struct ThresholdMatrix {
   void *baseAddr;
@@ -9,12 +9,4 @@ typedef struct ThresholdMatrix {
   uint32_t num_thresholds;
 } ThresholdMatrix;
 
-typedef struct ThresholdResultMatrix {
-  void *base_addr_writer;
-  uint32_t num_channe;
-  uint32_t num_rows;
-  uint32_t num_cols;
-} ThresholdResultMatrix;
-
-Run_Thresholder(WrapperRegDriver *platform,
-  ThresholdMatrix *matrix, ThresholdResultMatrix *matrix_result, int64_t *result);
+void Run_Thresholder(void *_platform, ThresholdMatrix *matrix, int64_t *input_matrix_ptr, int64_t *result);

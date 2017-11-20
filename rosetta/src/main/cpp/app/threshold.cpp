@@ -12,10 +12,7 @@
 
 using namespace std;
 
-// M: Matrix elements, T: Threshold elements.
-// #define M 1000
-// #define T 3
-
+#if 0
 double walltime() {
   static struct timeval t;
   gettimeofday(&t, NULL);
@@ -23,22 +20,22 @@ double walltime() {
 }
 
 void show(uint64_t *a, const int SIZE) {
-    for (int i = 0; i < SIZE; i++) {
+    for (uint32_t i = 0; i < SIZE; i++) {
         printf("%" PRIu64 " ", a[i]);
     }
     printf("\n");
 }
 
 void fill(uint64_t *a, const int SIZE) {
-    for (int i = 0; i < SIZE; i++) {
+    for (uint32_t i = 0; i < SIZE; i++) {
         a[i] = rand() % 10;
     }
 }
 
 void popcount(uint64_t *a, uint64_t *b, uint64_t *c) {
-    for (int x = 0; x < M; x++) {
+    for (uint32_t x = 0; x < M; x++) {
         uint64_t count = 0;
-        for (int t = 0; t < T; t++) {
+        for (uint32_t t = 0; t < T; t++) {
             count += (a[x] >= b[t]);
         }
         c[x] = count;
@@ -47,7 +44,7 @@ void popcount(uint64_t *a, uint64_t *b, uint64_t *c) {
 
 void compare(uint64_t *a, uint64_t *b) {
     int count = 0;
-    for (int x = 0; x < M; x++) {
+    for (uint32_t x = 0; x < M; x++) {
         count += a[x] == b[x] ? 0 : 1;
     }
 
@@ -57,57 +54,54 @@ void compare(uint64_t *a, uint64_t *b) {
         printf("SUCCESS! %d elements compared!\n", M);
     }
 }
+#endif
 
-void Run_Thresholder(WrapperRegDriver *platform, ThresholdMatrix *matrix,
-    ThresholdResultMatrix *matrix_result, int64_t *result) {
+void Run_Thresholder(void *_platform, ThresholdMatrix *matrix, int64_t *input_matrix_ptr,  int64_t *result) {
+
+    auto platform = reinterpret_cast<WrapperRegDriver*>(_platform);
     QBART t(platform);
 
-    cout << "Signature: " << hex << t.get_signature() << dec << endl;
+    int32_t C = matrix->num_channels;
 
-    int32_t C = matrix->channels;
-
-    for (int c = 0; c < C; c++) {
+    for (uint32_t c = 0; c < C; c++) {
         int32_t M = matrix->num_rows * matrix->num_cols;
-        // int32_t T = matrix->num_thresholds;
+        int32_t T = matrix->num_thresholds;
 
         // DMA components may not work if the total number of bytes in a
         // read/write buffer is not divisible by 64. Using 8-byte words, the DMA
         // buffer must be a multiple of 8 because (N * 8 * 8) mod 64 = 0.
-        int reader_size = ceil((float) (M + T) / 8) * 8;
-        int writer_size = ceil((float) M / 8) * 8;
+        int reader_size = M + T;
+        int writer_size = M;
         int read_byte_count = reader_size * sizeof(uint64_t);
         int write_byte_count = writer_size * sizeof(uint64_t);
 
-        void *read_buffer = platform->allocAccelBuffer(read_byte_count);
         void *write_buffer = platform->allocAccelBuffer(write_byte_count);
 
-        uint64_t host_src[reader_size] = { 0 };
-        uint64_t host_rec[writer_size] = { 0 };
-
         // Copy host buffer to DRAM read buffer.
-        platform->copyBufferHostToAccel(matrix->baseAddr, read_buffer,
-            read_byte_count);
+        platform->copyBufferHostToAccel(input_matrix_ptr, matrix->baseAddr, read_byte_count);
 
-        t.set_baseAddrRead((AccelDblReg) read_buffer);
+        t.set_baseAddrRead((AccelDblReg) matrix->baseAddr);
         t.set_baseAddrWrite((AccelDblReg) write_buffer);
         t.set_byteCountReader(read_byte_count);
         t.set_byteCountWriter(write_byte_count);
         t.set_elemCount(M + T);
         t.set_threshCount(T);
 
+        t.set_thresh(1);
         t.set_start(1);
-        while (t.get_finished() != 1);
+        while (t.get_done() != 1);
         t.set_start(0);
+        t.set_thresh(0);
 
         // Copy DRAM write buffer to host receive buffer.
         platform->copyBufferAccelToHost(write_buffer,
             result + M * c, M * sizeof(uint64_t));
 
-        platform->deallocAccelBuffer(read_buffer);
         platform->deallocAccelBuffer(write_buffer);
 
         //////// DEBUG START.
 
+#if 0
         uint64_t expected[M + T] = { 0 };
         popcount(host_src, expected);
 
@@ -118,6 +112,7 @@ void Run_Thresholder(WrapperRegDriver *platform, ThresholdMatrix *matrix,
         printf("Result:      \n"); show(host_rec, 0, M);
 
         compare(expected, host_rec);
+#endif
 
         //////// DEBUG END.
     }

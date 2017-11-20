@@ -8,24 +8,30 @@ def Run_Threshold(platform, m, t):
 
     assert m.ndim == 3
     assert t.ndim == 2
+    m = m.astype(np.int64)
+    t = t.astype(np.int64)
+    print(m)
+    print(t)
+
+    c = np.concatenate((np.expand_dims(t, axis=0), m), axis=2)
+    print(c)
 
     matrix = ffi.cast('ThresholdMatrix *', lib.malloc(ffi.sizeof('ThresholdMatrix')))
-    matrix_result = ffi.cast('ThresholdResultMatrix *', lib.malloc(ffi.sizeof('ThresholdResultMatrix')))
 
+    matrix.num_channels, matrix.num_rows, matrix.num_cols = m.shape
+    _, matrix.num_thresholds = t.shape
 
+    matrix.baseAddr = lib.alloc_dram(platform, matrix.num_thresholds + matrix.num_rows * matrix.num_cols * matrix.num_channels * ffi.sizeof('int64_t'))
 
-    matrix.num_channels, matrix.num_rows, matrix.num_cols = matrix.shape
-    matrix.num_channels, matrix.num_rows, matrix.num_cols = matrix.shape
-
-    matrix.baseAddr = lib.alloc_dram(platform, matrix.num_rows*matrix.num_cols*matrix.num_channels * ffi.sizeof('uint64_t'))
-    matrix_result.baseAddr = lib.alloc_dram(platform, matrix.num_rows*matrix.num_cols*matrix.num_channels * ffi.sizeof('uint64_t'))
-
-    result_len = matrix.num_rows*matrix.num_columns*matrix.num_channels
+    result_len = matrix.num_rows * matrix.num_cols * matrix.num_channels
     R = np.zeros(result_len, dtype=np.int64)
-    result = ffi.cast('int64_t *', ffi.from_buffer(R))
+    result_ptr = ffi.cast('int64_t *', ffi.from_buffer(R))
 
+    input_matrix_ptr = ffi.cast('int64_t *', ffi.from_buffer(c))
 
-    lib.Run_Threshold(platform, matrix, matrix_result, result)
+    lib.Run_Thresholder(platform, matrix, input_matrix_ptr, result_ptr)
+
+    lib.dealloc_dram(platform, matrix.baseAddr)
 
     return R
 
@@ -317,16 +323,24 @@ def test_convolution(platform):
       print("Num unequal: "+ str(nums_unequal))
       exit(-1)
 
+def test_thresholding(platform):
+    m = np.array([[
+        [random.randint(1,10) for i in range(100)]
+      ]])
+    t = np.array([[random.randint(1,3) for i in range(3)]])
+    R = Run_Threshold(platform, m, t)
+    print("output:", R)
 
 def main():
     platform = lib.alloc_platform()
+    test_thresholding(platform)
 
     for i in range(3):
       print("Iteration ", i)
-      test_convolution(platform)
-      test_BitserialGEMM(platform)
-    
-    lib.Run_UART(platform, 0b00001111) 
+      #test_convolution(platform)
+      #test_BitserialGEMM(platform)
+
+    #lib.Run_UART(platform, 0b00001111) 
     lib.dealloc_platform(platform)
 
 
