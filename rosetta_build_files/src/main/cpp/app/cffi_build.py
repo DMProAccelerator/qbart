@@ -3,6 +3,7 @@ from cffi import FFI
 ffibuilder = FFI()
 
 ffibuilder.cdef("""
+// FC
 typedef struct PackedMatrix {
   void* baseAddr;
   uint32_t channels;
@@ -33,6 +34,7 @@ void dealloc_dram(void* platform, void* addr);
 void* malloc(size_t size);
 void free(void* p);
 
+// CONV
 typedef struct PackedConvolutionFilters {
   void* base_addr;
   uint32_t input_channels;
@@ -47,8 +49,18 @@ void filters_to_packed_filters(void* _platform, int64_t* arr, PackedConvolutionF
 void image_to_packed_image(void* _platform, int64_t* arr, PackedMatrix* m);
 void Run_UART(void *_platform, uint8_t c);
 
-""")
+// THRESH
 
+typedef struct ThresholdMatrix {
+  void *baseAddr;
+  uint32_t num_channels;
+  uint32_t num_rows;
+  uint32_t num_cols;
+  uint32_t num_thresholds;
+} ThresholdMatrix;
+
+void Run_Thresholder(void *_platform, ThresholdMatrix *matrix, int64_t *input_matrix_ptr, int64_t *result);
+""")
 
 ffibuilder.set_source("_qbart",
 r"""
@@ -59,8 +71,9 @@ r"""
 #include "platform.h"
 #include <stdint.h>
 #include "convolution.hpp"
+#include "threshold.hpp"
 """,
-sources = ['platform-xlnk.cpp', 'matrix_convert.cpp', 'image_convert.cpp', 'bitserialGEMM.cpp', 'convolution.cpp', 'uart_sender.cpp'], # add all sources here
+sources = ['platform-xlnk.cpp', 'matrix_convert.cpp', 'image_convert.cpp', 'bitserialGEMM.cpp', 'convolution.cpp', 'uart_sender.cpp', 'threshold.cpp'], # add all sources here
 
 libraries=['sds_lib'],  # add all libraries that must be linked here
 extra_compile_args=['-std=c++14'], # extra compile args

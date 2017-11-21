@@ -210,6 +210,7 @@ void Run_Convolution(void* _platform, PackedMatrix* image, PackedConvolutionFilt
   printf("Num filter bitplanes: %d\n", num_filter_bitplanes);
 #endif
 
+  t.set_imageAddr((AccelDblReg)dram_image);
   t.set_filterAddr((AccelDblReg)dram_filters);
   t.set_outputAddr((AccelDblReg)dram_result);
   t.set_tempAddr((AccelDblReg)temp_buffer);

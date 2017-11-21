@@ -10,6 +10,7 @@ void image_to_packed_image(void* _platform, int64_t* image, PackedMatrix* m) {
   int word_size_in_bytes = word_size_in_bits / 8;
 
   //printf("Image to packed\n");
+
   uint32_t channels = m->channels,
   	rows = m->rows,
 	cols = m->columns;
@@ -60,7 +61,7 @@ void image_to_packed_image(void* _platform, int64_t* image, PackedMatrix* m) {
     }
   }
 
-
+  
   m->baseAddr = platform->allocAccelBuffer(packed_image_size_in_bytes);
 
   platform->copyBufferHostToAccel(packed_image, m->baseAddr, packed_image_size_in_bytes);

@@ -4,6 +4,44 @@ import math
 import random
 
 
+def Run_Threshold(platform, m, t):
+
+    # No need to check dimensions, we're going to flatten them anyways
+
+    m = m.astype(np.int64)
+    t = t.astype(np.int64).flatten()
+    #print(m)
+    #print(t)
+
+    c = np.concatenate((t, m.flatten()))
+    #print(c)
+
+    matrix = ffi.cast('ThresholdMatrix *', lib.malloc(ffi.sizeof('ThresholdMatrix')))
+
+    matrix.num_channels, matrix.num_rows, matrix.num_cols = m.shape
+    matrix.num_thresholds = t.shape[0]
+
+    #print(m.shape)
+    #print(t.shape[0])
+
+    matrix.baseAddr = lib.alloc_dram(platform, (matrix.num_thresholds + matrix.num_rows * matrix.num_cols * matrix.num_channels) * ffi.sizeof('int64_t'))
+
+    result_len = matrix.num_rows * matrix.num_cols * matrix.num_channels
+    R = np.zeros(result_len, dtype=np.int64)
+
+    result_ptr = ffi.cast('int64_t *', ffi.from_buffer(R))
+    input_matrix_ptr = ffi.cast('int64_t *', ffi.from_buffer(c))
+
+    lib.Run_Thresholder(platform, matrix, input_matrix_ptr, result_ptr)
+
+    lib.dealloc_dram(platform, matrix.baseAddr)
+
+    lib.free(matrix)
+
+    # TODO: Possible dimension loss?
+
+    return R
+
 def Run_BitserialGEMM(platform, W, A):
     if W.ndim == 2:
         W = np.expand_dims(W, axis=0)
@@ -89,7 +127,7 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, padding
     #assert filters_data.ndim == 3
     image = ffi.cast('PackedMatrix *', lib.malloc(ffi.sizeof('PackedMatrix')))
     image.channels, image.rows, image.columns = image_data.shape
-    
+
     filters = ffi.cast('PackedConvolutionFilters * ', lib.malloc(ffi.sizeof('PackedConvolutionFilters')))
     filters.output_channels, filters.input_channels, window_size_squared = filters_data.shape
     filters.window_size = int(round(math.sqrt(window_size_squared)))
@@ -130,20 +168,21 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, padding
 #####
 ################################################################################
 
-def run_test(platform, W, A):
-    software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
-    fpga_res = Run_BitserialGEMM(platform, W, A)
-    if not (software_res == fpga_res).all():
-        print("Software res ", software_res.shape)
-        print(software_res)
-        print("FPGA res ", fpga_res.shape)
-        print(fpga_res)
-        assert False
-    print("Test succeeded")
 
 
 
 def test_BitserialGEMM(platform):
+
+    def run_test(platform, W, A):
+        software_res = np.array([np.dot(W[i],A[i]) for i in range(W.shape[0])])
+        fpga_res = Run_BitserialGEMM(platform, W, A)
+        if not (software_res == fpga_res).all():
+            print("Software res ", software_res.shape)
+            print(software_res)
+            print("FPGA res ", fpga_res.shape)
+            print(fpga_res)
+            assert False
+        print("Test succeeded")
 
     # Tweakale parameteres
     MAX_W_ROWS = 256
@@ -177,10 +216,10 @@ def test_BitserialGEMM(platform):
 
 
     for i in range(NUM_NORMAL_RUNS):
-        print("normal: running test {} of {}".format(i+1, NUM_NORMAL_RUNS))
+        print "normal: running test {} of {}".format(i+1, NUM_NORMAL_RUNS),
         test(platform)
     for i in range(NUM_BIPOLAR_RUNS):
-        print("bipolar: running test {} of {}".format(i+1, NUM_BIPOLAR_RUNS))
+        print "bipolar: running test {} of {}".format(i+1, NUM_BIPOLAR_RUNS),
         test(platform, bipolar=True)
 
 
@@ -224,7 +263,7 @@ def software_convolution(image, filters, stride):
 
 def test_convolution(platform):
     #random.seed('qbart')
-   
+
     #Set these to toggle sign
     image_signed = False
     filters_signed = True
@@ -272,7 +311,7 @@ def test_convolution(platform):
 		for c in xrange(image_num_channels)]
 		for r in xrange(num_output_channels)],
 		dtype=np.int64)
-	
+
     #print("Image: ")
     #print( image)
 
@@ -303,12 +342,45 @@ def test_convolution(platform):
 		#print("Element " + str(i) + " is different")
 		nums_unequal += 1
     if (software_res == result).all():
-    	print("The two were equal!")
+      print("Convolution test succeed!")
     else:
-        print("The two were unequal")
-	print("Num unequal: "+ str(nums_unequal))
-	exit(-1)
+      print("The two were unequal")
+      print("Num unequal: "+ str(nums_unequal))
+      exit(-1)
 
+def test_thresholding(platform):
+
+    def software_threshold(m, t):
+        ch, rows, cols = m.shape
+        res = np.zeros(m.shape, dtype=np.int64)
+        for i in range(ch):
+            for x in t.flatten():
+                #print(m[i] >= x)
+                res[i] += m[i] >= x
+        return res
+
+    mn = -300000
+    mx =  300000
+    channels = 3
+    elements = 300
+    thresholds = 255
+
+    m = np.array([[
+        [random.randint(mn,mx) for i in range(elements)]
+      ] for _ in range(channels)])
+    t = np.array([sorted([random.randint(mn,mx) for i in range(thresholds)])])
+
+    R = Run_Threshold(platform, m, t).flatten()
+    sw_R = software_threshold(m, t).flatten()
+    if (sw_R == R).all():
+        print("Threshold succeeded")
+    else:
+        print("M:\n", m)
+        print("Thresholds: ", t)
+        print("output:\n{}".format(R))
+        print("software:\n{}".format(sw_R))
+        print("err matrix\n{}".format(sw_R == R))
+        print("Num error: {}".format(sum((sw_R == R)==0)))
 
 def main():
     platform = lib.alloc_platform()
@@ -316,6 +388,7 @@ def main():
     for i in range(3):
     	print("Iteration ", i)
     	test_convolution(platform)
+        test_thresholding(platform)
         test_BitserialGEMM(platform)
     lib.Run_UART(platform, 0b00001111)
     lib.dealloc_platform(platform)

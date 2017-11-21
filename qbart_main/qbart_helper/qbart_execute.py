@@ -40,6 +40,10 @@ class qbart_execute(multiprocessing.Process):
 					activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
 				elif (layer.layerType() == "QNNConvolutionLayer"):
 					activations = cffi_run.Run_Convolution(lib.alloc_platform(), activations, layer.W, int(round(np.log2(layer.stride))), layer.pad, layer.ifm, layer.ofm, layer.k, layer.idim, layer.idim)
+				elif (layer.layerType() == "QNNThresholdingLayer" or layer.layerType() == "QNNBipolarThresholdingLayer"):
+					print("Now running thresholding on FPGA")
+					activations = cffi_run.Run_Threshold(lib.alloc_platform(), activations, layer.thresholds)
+					print("Now finished thresholding on FPGA")
 				# Just run the CPU version if there is no FPGA version
 				else:
 					activations = layer.execute(activations)
