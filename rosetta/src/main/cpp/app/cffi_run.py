@@ -6,25 +6,23 @@ import random
 
 def Run_Threshold(platform, m, t):
 
-    # TODO: Fix dimensions
+    # No need to check dimensions, we're going to flatten them anyways
 
-    assert m.ndim == 3
     m = m.astype(np.int64)
     t = t.astype(np.int64).flatten()
     #print(m)
     #print(t)
 
-    # TODO..
     c = np.concatenate((t, m.flatten()))
-    print(c)
+    #print(c)
 
     matrix = ffi.cast('ThresholdMatrix *', lib.malloc(ffi.sizeof('ThresholdMatrix')))
 
     matrix.num_channels, matrix.num_rows, matrix.num_cols = m.shape
     matrix.num_thresholds = t.shape[0]
 
-    print(m.shape)
-    print(t.shape[0])
+    #print(m.shape)
+    #print(t.shape[0])
 
     matrix.baseAddr = lib.alloc_dram(platform, matrix.num_thresholds + matrix.num_rows * matrix.num_cols * matrix.num_channels * ffi.sizeof('int64_t'))
 
@@ -344,10 +342,10 @@ def test_thresholding(platform):
                 res[i] += m[i] >= x
         return res
 
-    mn = -3000000000
-    mx =  3000000000
+    mn = -300000
+    mx =  300000
     channels = 3
-    elements = 15
+    elements = 300
     thresholds = 255
 
     m = np.array([[
@@ -364,6 +362,7 @@ def test_thresholding(platform):
         print("Thresholds: ", t)
         print("output:\n{}".format(R))
         print("software:\n{}".format(sw_R))
+        print("Num error: {}".format(sum((sw_R == R)==0)))
 
 def main():
     platform = lib.alloc_platform()
