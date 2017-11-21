@@ -24,7 +24,7 @@ def Run_Threshold(platform, m, t):
     #print(m.shape)
     #print(t.shape[0])
 
-    matrix.baseAddr = lib.alloc_dram(platform, matrix.num_thresholds + matrix.num_rows * matrix.num_cols * matrix.num_channels * ffi.sizeof('int64_t'))
+    matrix.baseAddr = lib.alloc_dram(platform, (matrix.num_thresholds + matrix.num_rows * matrix.num_cols * matrix.num_channels) * ffi.sizeof('int64_t'))
 
     result_len = matrix.num_rows * matrix.num_cols * matrix.num_channels
     R = np.zeros(result_len, dtype=np.int64)
@@ -362,6 +362,7 @@ def test_thresholding(platform):
         print("Thresholds: ", t)
         print("output:\n{}".format(R))
         print("software:\n{}".format(sw_R))
+        print("err matrix\n{}".format(sw_R == R))
         print("Num error: {}".format(sum((sw_R == R)==0)))
 
 def main():

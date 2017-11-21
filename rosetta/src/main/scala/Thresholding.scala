@@ -80,7 +80,7 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
     }
     is (sReadMatrix) {
       when (rIndex === UInt(io.elemCount)) {
-        rState := sReaderFlush
+        rState := sFinished
       }
       //.otherwise (thresholder.matrix.ready) {
       .otherwise {
@@ -104,6 +104,7 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
         }
       }
     }
+    /*
     is (sReaderFlush) {
       when (rBytesLeft === UInt(0)) {
         rState := sFinished
@@ -115,6 +116,7 @@ class DMAHandler(w: Int, p: PlatformWrapperParams) extends Module {
         }
       }
     }
+    */
     is (sFinished) {
       io.finished := Bool(true)
       when (!io.start) {
