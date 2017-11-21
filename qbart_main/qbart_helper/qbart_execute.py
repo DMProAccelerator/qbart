@@ -5,10 +5,10 @@ import sys
 import os
 
 # This path must obviously be accurate.
-sys.path.append("/home/xilinx/rosetta/rosetta")
+sys.path.append("/home/xilinx/jupyter_notebooks/qbart_main/rosetta/rosetta")
 
 import cffi_run
-from _fullyconnected import lib
+from _qbart import lib
 
 # qbart_execute is run as a part of a qbart processing server.
 # If we have an FPGA-component for it, we run it on the FPGA.
@@ -41,10 +41,10 @@ class qbart_execute(multiprocessing.Process):
 					activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
 					print("Finished running FC on FPGA")
 				
-				elif (layer.layerType() == "QNNConvolutionLayer"):
-					print("Executing convolution on FPGA")
-					activations = cffi_run.Run_Convolution(lib.alloc_platform(), activations, layer.W)
-					print("Finished running convolution on FPGA.")
+				#elif (layer.layerType() == "QNNConvolutionLayer"):
+				#	print("Executing convolution on FPGA")
+				#	activations = cffi_run.Run_Convolution(lib.alloc_platform(), activations, layer.W)
+				#	print("Finished running convolution on FPGA.")
 				# Just run the CPU version if an FPGA component doesn't exist.
 				else:
 					activations = layer.execute(activations)

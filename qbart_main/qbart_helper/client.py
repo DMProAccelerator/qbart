@@ -5,11 +5,16 @@ import copy
 import socket
 import threading
 from time import sleep
-from qbart_helper import *
+
+from load_images import *
+from qbart_socket_functions import *
+from load_qnn import *
+
+
 import sys
 import cPickle as pickle
 
-sys.path.append("/home/xilinx/rosetta/rosetta")
+sys.path.append("/home/xilinx/jupyter_notebooks/qbart_main/rosetta/rosetta")
 from cffi_run import uart_send_message
 """
 The client has a QNN pickle and a set of images that it wants to send
@@ -147,7 +152,6 @@ class server_status_msg_handler(multiprocessing.Process):
 		for key in self.server_table.keys():
 			uart_send_message(int((str('0b') + str(0) + str(self.server_table[key][0]) + str(0000)),2))
 		
-		print(self.exit.is_set())
 		while (not self.exit.is_set()):
 			new_message = self.message_queue.get()
 			if new_message is not None:
@@ -230,9 +234,7 @@ def sendandreceive(argumentarray):
 			filesize = safe_receive(32, 32, socket)
 			pickled_message = safe_receive(int(filesize,2), 32, socket)
 			the_message = pickle.loads(pickled_message)
-			print("Im now putting shit in the message queue. Specifically this msg:", the_message)
 			the_message_queue.put([socket.getpeername()[0], the_message[0], the_message[1]])
-			print("Now there should be a message on the message queue.")
 			
 		else:
 			raise ValueError("UHOH! We received a message that doesnt follow protocol.")
