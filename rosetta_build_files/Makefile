@@ -5,7 +5,7 @@ VIVADO_MODE := batch
 # which C++ compiler to use
 CC = g++
 # scp/rsync target to copy files to board
-BOARD_URI := ~/rosetta
+BOARD_URI := ~/Development/qbart/qbart_main/rosetta
 
 # other project settings
 SBT ?= sbt
