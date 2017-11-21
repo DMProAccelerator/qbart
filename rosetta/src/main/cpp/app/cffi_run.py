@@ -78,7 +78,7 @@ def Run_Convolution(platform, image_data, filters_data, stride_exponent, padding
     if image_data.ndim == 2:
         image_data = np.expand_dims(image_data, axis=0)
     if filters_data.ndim == 2:
-        filters_data = filter_data.reshape((num_output_channels, num_input_channels, kernel_side_size)) # So that it is of the form [output_channel][input_channel][element]
+        filters_data = filters_data.reshape((num_output_channels, num_input_channels, kernel_side_size*kernel_side_size)) # So that it is of the form [output_channel][input_channel][element]
 
     if padding != 0:
         padCounts = ((0,0),
