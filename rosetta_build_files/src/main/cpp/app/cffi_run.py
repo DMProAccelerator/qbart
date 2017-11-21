@@ -72,6 +72,58 @@ def Run_BitserialGEMM(platform, W, A):
     return R
 
 
+def Run_Convolution(platform, image_data, filters_data, stride_exponent, padding, num_input_channels, num_output_channels, kernel_side_size, image_width, image_height):
+    if image_data.ndim == 1:
+        image_data = image_data.reshape(num_input_channels, image_height, image_width)
+    if image_data.ndim == 2:
+        image_data = np.expand_dims(image_data, axis=0)
+    if filters_data.ndim == 2:
+        filters_data = filters_data.reshape((num_output_channels, num_input_channels, kernel_side_size*kernel_side_size)) # So that it is of the form [output_channel][input_channel][element]
+
+    if padding != 0:
+        padCounts = ((0,0),
+                     (padding, padding),
+                     (padding, padding))
+        image_data = np.pad(image_data, padCounts, "constant", constant_values=0) # Only zero-padding supported
+    #assert image_data.ndim == 3
+    #assert filters_data.ndim == 3
+    image = ffi.cast('PackedMatrix *', lib.malloc(ffi.sizeof('PackedMatrix')))
+    image.channels, image.rows, image.columns = image_data.shape
+    
+    filters = ffi.cast('PackedConvolutionFilters * ', lib.malloc(ffi.sizeof('PackedConvolutionFilters')))
+    filters.output_channels, filters.input_channels, window_size_squared = filters_data.shape
+    filters.window_size = int(round(math.sqrt(window_size_squared)))
+
+    result = ffi.cast('ResultMatrix *', lib.malloc(ffi.sizeof('ResultMatrix')))
+    conv_num_windows_in_width = ((image.columns - filters.window_size) >> stride_exponent) + 1
+    conv_num_windows_in_height = ((image.rows - filters.window_size) >> stride_exponent) + 1
+    result.channels, result.rows, result.columns, result.is_signed = filters.output_channels, conv_num_windows_in_width, conv_num_windows_in_height, True
+
+    result.baseAddr = lib.alloc_dram(platform, result.channels * result.rows * result.columns * ffi.sizeof('int64_t'))
+    flattenedImage = image_data.flatten().astype(np.int64)
+    flattenedFilters = filters_data.flatten().astype(np.int64)
+
+    flatImPointer = ffi.cast('int64_t *', ffi.from_buffer(flattenedImage))
+    flatFiltersPointer = ffi.cast('int64_t *', ffi.from_buffer(flattenedFilters))
+
+    lib.image_to_packed_image(platform, flatImPointer, image)
+    lib.filters_to_packed_filters(platform, flatFiltersPointer, filters)
+    lib.Run_Convolution(platform, image, filters, stride_exponent, result)
+
+    result_length = result.channels * result.rows * result.columns
+    result_matrix = np.zeros(result_length, dtype=np.int64)
+    result_pointer = ffi.cast('int64_t *', ffi.from_buffer(result_matrix))
+    lib.result_matrix_to_matrix(platform, result, result_pointer, result_length)
+    result_matrix = result_matrix.reshape((result.columns, result.rows, result.channels)).transpose((2, 0, 1))
+
+    lib.dealloc_dram(platform, result.baseAddr);
+    lib.dealloc_dram(platform, filters.base_addr);
+    lib.dealloc_dram(platform, image.baseAddr);
+
+    return result_matrix
+
+
+
 ################################################################################
 #####
 ##### ONLY TEST CODE BELOW
@@ -138,48 +190,6 @@ def uart_send_message(char):
      example usage: uart_send_message(0b00001111)
     """
     lib.Run_UART(lib.alloc_platform(), char)
-
-def Run_Convolution(platform, image_data, filters_data, stride_exponent):
-    if image_data.ndim == 2:
-        image_data = np.expand_dims(image_data, axis=0)
-    if filters_data.ndim == 2:
-        filters_data = np.expand_dims(filters_data) # So that it is of the form [output_channel][input_channel][element]
-    #assert image_data.ndim == 3
-    #assert filters_data.ndim == 3
-    image = ffi.cast('PackedMatrix *', lib.malloc(ffi.sizeof('PackedMatrix')))
-    image.channels, image.rows, image.columns = image_data.shape
-    
-    filters = ffi.cast('PackedConvolutionFilters * ', lib.malloc(ffi.sizeof('PackedConvolutionFilters')))
-    filters.output_channels, filters.input_channels, window_size_squared = filters_data.shape
-    filters.window_size = int(round(math.sqrt(window_size_squared)))
-
-    result = ffi.cast('ResultMatrix *', lib.malloc(ffi.sizeof('ResultMatrix')))
-    conv_num_windows_in_width = ((image.columns - filters.window_size) >> stride_exponent) + 1
-    conv_num_windows_in_height = ((image.rows - filters.window_size) >> stride_exponent) + 1
-    result.channels, result.rows, result.columns, result.is_signed = filters.output_channels, conv_num_windows_in_width, conv_num_windows_in_height, True
-
-    result.baseAddr = lib.alloc_dram(platform, result.channels * result.rows * result.columns * ffi.sizeof('int64_t'))
-    flattenedImage = image_data.flatten().astype(np.int64)
-    flattenedFilters = filters_data.flatten().astype(np.int64)
-
-    flatImPointer = ffi.cast('int64_t *', ffi.from_buffer(flattenedImage))
-    flatFiltersPointer = ffi.cast('int64_t *', ffi.from_buffer(flattenedFilters))
-
-    lib.image_to_packed_image(platform, flatImPointer, image)
-    lib.filters_to_packed_filters(platform, flatFiltersPointer, filters)
-    lib.Run_Convolution(platform, image, filters, stride_exponent, result)
-
-    result_length = result.channels * result.rows * result.columns
-    result_matrix = np.zeros(result_length, dtype=np.int64)
-    result_pointer = ffi.cast('int64_t *', ffi.from_buffer(result_matrix))
-    lib.result_matrix_to_matrix(platform, result, result_pointer, result_length)
-    result_matrix = result_matrix.reshape((result.columns, result.rows, result.channels)).transpose((2, 0, 1))
-
-    lib.dealloc_dram(platform, result.baseAddr);
-    lib.dealloc_dram(platform, filters.base_addr);
-    lib.dealloc_dram(platform, image.baseAddr);
-
-    return result_matrix
 
 # NB: Actual convolution, where filters are reversedly applied
 def software_convolution(image, filters, stride):
@@ -268,7 +278,7 @@ def test_convolution(platform):
 
     #print("Filters: ")
     #print(filters)
-    result = Run_Convolution(platform, image, filters, stride_exponent)
+    result = Run_Convolution(platform, image, filters, stride_exponent, 0, num_output_channels, image_num_channels, window_size, image_width, image_height)
 
     software_res = software_convolution(image, filters, 1 << stride_exponent)
     out_width = ((image_width - window_size) >> stride_exponent) + 1
@@ -284,13 +294,6 @@ def test_convolution(platform):
 
     print("Reversed filters: ", reversed_filters)"""
 
-    #result = Run_Convolution(platform, image, reversed_filters, stride_exponent, image_num_bitplanes, filter_num_bitplanes)
-
-    #print("Hardware result: ")
-    #print(result)
-
-    #print("\n\nSoftware result: ")
-    #print(software_res)
     sw_flat = software_res.flatten()
     hw_flat = result.flatten()
 

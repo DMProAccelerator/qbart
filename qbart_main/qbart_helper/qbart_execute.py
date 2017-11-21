@@ -37,15 +37,10 @@ class qbart_execute(multiprocessing.Process):
 				# but should in the end be entirely different when FPGA implements are finished.
 				
 				if (layer.layerType() == "QNNFullyConnectedLayer"):
-					print("Executing FC on FPGA.")
 					activations = cffi_run.Run_BitserialGEMM(lib.alloc_platform(), layer.W, activations)
-					print("Finished running FC on FPGA")
-				
-				#elif (layer.layerType() == "QNNConvolutionLayer"):
-				#	print("Executing convolution on FPGA")
-				#	activations = cffi_run.Run_Convolution(lib.alloc_platform(), activations, layer.W)
-				#	print("Finished running convolution on FPGA.")
-				# Just run the CPU version if an FPGA component doesn't exist.
+				elif (layer.layerType() == "QNNConvolutionLayer"):
+					activations = cffi_run.Run_Convolution(lib.alloc_platform(), activations, layer.W, int(round(np.log2(layer.stride))), layer.pad, layer.ifm, layer.ofm, layer.k, layer.idim, layer.idim)
+				# Just run the CPU version if there is no FPGA version
 				else:
 					activations = layer.execute(activations)
 			
