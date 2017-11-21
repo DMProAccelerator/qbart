@@ -3,31 +3,22 @@ import numpy as np
 import math
 import random
 
-
 def Run_Threshold(platform, m, t):
 
     # No need to check dimensions, we're going to flatten them anyways
 
     m = m.astype(np.int64)
     t = t.astype(np.int64).flatten()
-    #print(m)
-    #print(t)
-
     c = np.concatenate((t, m.flatten()))
-    #print(c)
 
     matrix = ffi.cast('ThresholdMatrix *', lib.malloc(ffi.sizeof('ThresholdMatrix')))
-
-    matrix.num_channels, matrix.num_rows, matrix.num_cols = m.shape
     matrix.num_thresholds = t.shape[0]
 
-    #print(m.shape)
-    #print(t.shape[0])
+    num_elements = reduce(lambda a, b: a * b, m.shape, 1)
 
-    matrix.baseAddr = lib.alloc_dram(platform, (matrix.num_thresholds + matrix.num_rows * matrix.num_cols * matrix.num_channels) * ffi.sizeof('int64_t'))
+    matrix.baseAddr = lib.alloc_dram(platform, (matrix.num_thresholds + num_elements) * ffi.sizeof('int64_t'))
 
-    result_len = matrix.num_rows * matrix.num_cols * matrix.num_channels
-    R = np.zeros(result_len, dtype=np.int64)
+    R = np.zeros(num_elements, dtype=np.int64)
 
     result_ptr = ffi.cast('int64_t *', ffi.from_buffer(R))
     input_matrix_ptr = ffi.cast('int64_t *', ffi.from_buffer(c))
@@ -37,8 +28,6 @@ def Run_Threshold(platform, m, t):
     lib.dealloc_dram(platform, matrix.baseAddr)
 
     lib.free(matrix)
-
-    # TODO: Possible dimension loss?
 
     return R
 
